@@ -32,7 +32,7 @@ git checkout v1.23
 
 
 
-## Lab 1 极简创建 Pod
+## Lab 1 极简创建 pod
 
 
 
@@ -615,7 +615,7 @@ kubectl  logs -f  nginx
 
 
 
-## Lab 2 创建多容器pod
+## Lab 2 创建多容器 pod
 
 
 
@@ -997,11 +997,11 @@ kubectl delete -f many-pods.yaml
 
 
 
-## Lab 3 定义pod的DNS
+## Lab 3 定义 pod 的 DNS
 
 
 
-使用示例文件创建yaml文件
+使用示例文件创建 yaml 文件
 
 ```bash
 nano nginx-dns.yaml
@@ -1128,7 +1128,7 @@ kubectl delete -f nginx-dns.yaml
 
 
 
-## Lab 4 定义pod的监听端口
+## Lab 4 定义 pod 的监听端口
 
 
 
@@ -1498,7 +1498,7 @@ kubectl delete -f nginx-env.yaml
 
 
 
-## Lab 7 定义pod执行的任务
+## Lab 7 定义 pod 执行的任务
 
 查看nginx的Dockefile，着重查看最后一行
 
@@ -1895,7 +1895,7 @@ kubectl delete -f nginx-hostnetwork.yaml
 
 
 
-## Lab 10 定义pod volume：hostpath
+## Lab 10 定义 pod volume：hostpath
 
 
 
@@ -5241,7 +5241,7 @@ root@node1:~/k8slab/svc# curl http://10.244.104.18
 
 
 
-## Lab 2 创建cluster ip svc
+## Lab 2 创建 cluster ip 服务
 
 
 
@@ -5331,7 +5331,7 @@ root@node1:~/k8slab/svc# curl 10.97.66.233
 
 
 
-## Lab 3 创建nodeport svc服务
+## Lab 3 创建 nodeport 服务
 
 
 
@@ -5591,11 +5591,11 @@ exit
 
 
 
-## Lab 5 使用ingress发布服务
+## Lab 5 使用 ingress 发布服务
 
 
 
-安装ingress
+安装 ingress
 
 ```bash
 kubectl apply -f ingress-nginx.yaml 
@@ -5605,7 +5605,7 @@ kubectl apply -f ingress-nginx.yaml
 
 
 
-查看ingress-nginx的pod
+查看 ingress-nginx 的pod
 
 ```bash
 kubectl get pods -n ingress-nginx -o wide
@@ -5622,11 +5622,11 @@ ingress-nginx-controller-76d86f9848-2jrc4   1/1     Running     0          99s  
 ingress-nginx-controller-76d86f9848-9klzx   1/1     Running     0          99s   192.168.1.232   node2   <none>           <none>
 ```
 
-关注ingress-nginx-controller所在节点
+关注 ingress-nginx-controller 所在节点
 
 
 
-查看ingress-nginx的svc
+查看 ingress-nginx 的 svc
 
 ```bash
 kubectl get svc -n ingress-nginx
@@ -5643,7 +5643,7 @@ ingress-nginx-controller-admission   ClusterIP   10.101.130.249   <none>        
 
 
 
-使用以下范例创建ingress文件
+使用以下范例创建 ingress 文件
 
 ```bash
 nano katacoda.ingress.yaml 
@@ -5672,7 +5672,7 @@ spec:
 
 
 
-创建ingress
+创建 ingress
 
 ```bash
 kubectl apply -f katacoda.ingress.yaml 
@@ -5696,7 +5696,7 @@ katacoda-ingress   <none>   hello.example.com   192.168.1.232,192.168.1.233   80
 
 
 
-使用以下命令测试ingress
+使用以下命令测试 ingress
 
 ```bash
 curl http://192.168.1.232 -H "Host: hello.example.com"
@@ -5715,7 +5715,7 @@ root@node1:~/k8slab/svc# curl http://192.168.1.232 -H "Host: hello.example.com"
 
 
 
-亦可修改hosts文件
+亦可修改 hosts 文件
 
 ```bash
 cat /etc/hosts
@@ -5762,7 +5762,7 @@ root@node1:~/k8slab/svc# curl http://hello.example.com
 
 
 
-清理deploymen和服务
+清理 deploymen 和服务
 
 ```bash
 kubectl delete -f katacoda.ingress.yaml 
@@ -5819,7 +5819,7 @@ kubectl create service nodeport katacoda --tcp 80:80 --dry-run=client -o yaml
 
 
 
-- ingress创建步骤
+- ingress 创建步骤
 
 https://segmentfault.com/a/1190000040618813
 
