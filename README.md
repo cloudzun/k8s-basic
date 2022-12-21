@@ -5066,7 +5066,7 @@ kubectl delete -f cronjob.yaml
 
 ## Lab 5 使用 DaemonSet 运行守护进程应用
 
-使用以下范例，创建deamonset yaml
+使用以下范例，创建 deamonset yaml
 
 ```bash
 nano katacoda-daemonsets.yaml 
@@ -5098,7 +5098,7 @@ spec:
 
 
 
-启用DaemonSet
+启用 DaemonSet
 
 ```bash
 kubectl apply -f katacoda-daemonsets.yaml 
@@ -5106,7 +5106,7 @@ kubectl apply -f katacoda-daemonsets.yaml
 
 
 
-观察pod
+观察 pod
 
 ```
 kubectl get pods -o wide
@@ -5126,7 +5126,710 @@ nginx                       1/1     Running   0          8h    10.244.135.3    n
 
 
 
+删除 daemonsets
+
+```bash
+kubectl delete -f katacoda-daemonsets.yaml
+```
+
+
+
 # 网络和服务基础
+
+## Lab 1 创建 katacoda deployment
+
+
+
+进入本章实验目录路径
+
+```bash
+root@node1:~/k8slab/svc# pwd
+/root/k8slab/svc
+```
+
+
+
+创建 katacoda deployment 示例yaml
+
+```bash
+kubectl create deployment katacoda --image=katacoda/docker-http-server --dry-run=client -o yaml 
+```
+
+
+
+进行适当的修改得到示例文件
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: katacoda
+  name: katacoda
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: katacoda
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: katacoda
+    spec:
+      containers:
+      - image: katacoda/docker-http-server
+        name: docker-http-server
+        resources: {}
+```
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano katacoda.yaml
+```
+
+
+
+创建deployment
+
+```bash
+kubectl create -f katacoda.yaml
+```
+
+
+
+查看pod，重点关注pod的名称和ip地址
+
+```bash
+kubectl get pods -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/svc# kubectl get pods -o wide
+NAME                        READY   STATUS    RESTARTS   AGE   IP              NODE    NOMINATED NODE   READINESS GATES
+katacoda-56dbd65b59-csltf   1/1     Running   0          19s   10.244.104.17   node2   <none>           <none>
+katacoda-56dbd65b59-fkwbx   1/1     Running   0          19s   10.244.135.52   node3   <none>           <none>
+katacoda-56dbd65b59-l5zj7   1/1     Running   0          19s   10.244.104.18   node2   <none>           <none>
+nginx                       1/1     Running   0          9h    10.244.135.3    node3   <none>           <none>
+```
+
+
+
+访问其中某个pod，查看访问效果
+
+```bash
+curl http://10.244.135.52
+```
+
+
+
+```bash
+root@node1:~/k8slab/svc# curl http://10.244.135.52
+<h1>This request was processed by host: katacoda-56dbd65b59-fkwbx</h1>
+root@node1:~/k8slab/svc# curl http://10.244.104.17
+<h1>This request was processed by host: katacoda-56dbd65b59-csltf</h1>
+root@node1:~/k8slab/svc# curl http://10.244.104.18
+<h1>This request was processed by host: katacoda-56dbd65b59-l5zj7</h1>
+```
+
+
+
+
+
+## Lab 2 创建cluster ip svc
+
+
+
+创建cluster ip svc yaml示例文件
+
+```bash
+kubectl create service clusterip katacoda --tcp 80:80 --dry-run=client -o yaml
+```
+
+
+
+经过适当变造得到示例文件
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: katacoda
+  name: katacoda
+spec:
+  ports:
+  - name: 80-80
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: katacoda
+  type: ClusterIP
+```
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano katasvc.yaml
+```
+
+
+
+创建service发布服务
+
+```bash
+kubectl apply -f katasvc.yaml 
+```
+
+
+
+查看服务，重点关注 TYPE 和 CLUSTER-IP 
+
+```bash
+kubectl get svc
+```
+
+
+
+```bash
+root@node1:~/k8slab/svc# kubectl get svc
+NAME         TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
+katacoda     ClusterIP   10.97.66.233   <none>        80/TCP    8s
+kubernetes   ClusterIP   10.96.0.1      <none>        443/TCP   242d
+```
+
+
+
+使用服务的ip访问,多访问几次，观察负载均衡效果
+
+```bash
+curl 10.97.66.233
+```
+
+
+
+```bash
+root@node1:~/k8slab/svc# curl 10.97.66.233
+<h1>This request was processed by host: katacoda-56dbd65b59-fkwbx</h1>
+root@node1:~/k8slab/svc# curl 10.97.66.233
+<h1>This request was processed by host: katacoda-56dbd65b59-csltf</h1>
+root@node1:~/k8slab/svc# curl 10.97.66.233
+<h1>This request was processed by host: katacoda-56dbd65b59-l5zj7</h1>
+```
+
+
+
+
+
+
+
+## Lab 3 创建nodeport svc服务
+
+
+
+创建nodeport svc yaml示例文件
+
+```bash
+kubectl create service nodeport katacoda --tcp 80:80 --dry-run=client -o yaml
+```
+
+
+
+经过适当变造得到示例文件
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: katacoda
+  name: katacoda2
+spec:
+  ports:
+  - name: 80-80
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: katacoda
+  type: NodePort
+```
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano katasvc2.yaml
+```
+
+
+
+创建service发布服务
+
+```bash
+kubectl apply -f katasvc2.yaml 
+```
+
+
+
+查看服务，重点关注TYPE和Port
+
+```bash
+kubectl get svc
+```
+
+
+
+```bash
+root@node1:~/k8slab/svc# kubectl get svc
+NAME         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE
+katacoda     ClusterIP   10.97.66.233     <none>        80/TCP         4m39s
+katacoda2    NodePort    10.106.215.152   <none>        80:31215/TCP   9s
+kubernetes   ClusterIP   10.96.0.1        <none>        443/TCP        242d
+```
+
+
+
+使用主机名/IP地址加端口号的方式进行访问
+
+```bash
+curl node1:31215
+```
+
+
+
+```bash
+root@node1:~/k8slab/svc# curl node1:31215
+<h1>This request was processed by host: katacoda-56dbd65b59-l5zj7</h1>
+root@node1:~/k8slab/svc# curl node1:31215
+<h1>This request was processed by host: katacoda-56dbd65b59-fkwbx</h1>
+root@node1:~/k8slab/svc# curl node1:31215
+<h1>This request was processed by host: katacoda-56dbd65b59-csltf</h1>
+```
+
+如果使用云主机做实验，也可用节点的公网IP地址加端口方式进行访问，但是前提是需要设置网络安全组
+
+
+
+尝试从群集外用浏览器访问这个 nodeport 服务
+
+![image-20221221191035800](README.assets/image-20221221191035800.png)
+
+修改nodeport端口到30080
+
+```bash
+KUBE_EDITOR="nano" kubectl edit svc katacoda2
+```
+
+
+
+```bash
+ports:
+  - name: 80-80
+    nodePort: 30080 # 指定端口
+    port: 80
+    protocol: TCP
+    targetPort: 80
+```
+
+亦可参照该范例修改yaml文件
+
+
+
+查看服务，重点关注 TYPE 和 Port
+
+```bash
+kubectl get svc
+```
+
+
+
+```bash
+root@node1:~/k8slab/svc# kubectl get svc
+NAME         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE
+katacoda     ClusterIP   10.97.66.233     <none>        80/TCP         10m
+katacoda2    NodePort    10.106.215.152   <none>        80:30080/TCP   5m50s
+kubernetes   ClusterIP   10.96.0.1        <none>        443/TCP        242d
+```
+
+
+
+
+
+## Lab 4 创建 none clusterIP 服务，并进行名称解析
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano katasvc3.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: katacoda
+  name: katacoda3
+spec:
+  clusterIP: None
+  ports:
+  - name: 80-80
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: katacoda
+```
+
+
+
+创建none clusterIP 发布服务
+
+```bash
+kubectl apply -f katasvc3.yaml 
+```
+
+
+
+查看服务，重点关注 katacoda3 的 CLUSTER-IP
+
+```bash
+kubectl get svc
+```
+
+
+
+```bash
+root@node1:~/k8slab/svc# kubectl get svc
+NAME         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE
+katacoda     ClusterIP   10.97.66.233     <none>        80/TCP         13m
+katacoda2    NodePort    10.106.215.152   <none>        80:30080/TCP   9m28s
+katacoda3    ClusterIP   None             <none>        80/TCP         15s
+kubernetes   ClusterIP   10.96.0.1        <none>        443/TCP        242d
+```
+
+
+
+创建busybox pod，进行dns解析
+
+```bash
+kubectl run test-dns --image=busybox:1.28 -- sleep 3600
+```
+
+
+
+进入pod
+
+```bash
+kubectl exec -it test-dns -- /bin/sh 
+```
+
+
+
+解析
+
+```bash
+nslookup katacoda3.default.svc.cluster.local
+```
+
+
+
+```
+root@node1:~/k8slab/svc# kubectl exec -it test-dns -- /bin/sh
+/ # nslookup katacoda3.default.svc.cluster.local
+Server:    10.96.0.10
+Address 1: 10.96.0.10 kube-dns.kube-system.svc.cluster.local
+
+Name:      katacoda3.default.svc.cluster.local
+Address 1: 10.244.104.18 10-244-104-18.katacoda.default.svc.cluster.local
+Address 2: 10.244.104.17 10-244-104-17.katacoda.default.svc.cluster.local
+Address 3: 10.244.135.52 10-244-135-52.katacoda3.default.svc.cluster.local
+```
+
+
+
+多执行几次，观察轮询效果
+
+```bash
+Name:      katacoda3
+Address 1: 10.244.135.52 10-244-135-52.katacoda.default.svc.cluster.local
+Address 2: 10.244.104.17 10-244-104-17.katacoda.default.svc.cluster.local
+Address 3: 10.244.104.18 10-244-104-18.katacoda.default.svc.cluster.local
+/ # nslookup katacoda3.default.svc
+Server:    10.96.0.10
+Address 1: 10.96.0.10 kube-dns.kube-system.svc.cluster.local
+
+Name:      katacoda3.default.svc
+Address 1: 10.244.104.17 10-244-104-17.katacoda.default.svc.cluster.local
+Address 2: 10.244.104.18 10-244-104-18.katacoda.default.svc.cluster.local
+Address 3: 10.244.135.52 10-244-135-52.katacoda.default.svc.cluster.local
+```
+
+
+
+退出pod上下文
+
+```bash
+exit
+```
+
+
+
+
+
+## Lab 5 使用ingress发布服务
+
+
+
+安装ingress
+
+```bash
+kubectl apply -f ingress-nginx.yaml 
+
+#  kubectl apply -f https://raw.githubusercontent.com/cloudzun/k8slab/v1.23/svc/ingress-nginx.yaml
+```
+
+
+
+查看ingress-nginx的pod
+
+```bash
+kubectl get pods -n ingress-nginx -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/svc# kubectl get pods -n ingress-nginx -o wide
+NAME                                        READY   STATUS      RESTARTS   AGE   IP              NODE    NOMINATED NODE   READINESS GATES
+ingress-nginx-admission-create-2clxv        0/1     Completed   0          99s   10.244.104.19   node2   <none>           <none>
+ingress-nginx-admission-patch-qs4hr         0/1     Completed   0          99s   10.244.135.54   node3   <none>           <none>
+ingress-nginx-controller-76d86f9848-2jrc4   1/1     Running     0          99s   192.168.1.233   node3   <none>           <none>
+ingress-nginx-controller-76d86f9848-9klzx   1/1     Running     0          99s   192.168.1.232   node2   <none>           <none>
+```
+
+关注ingress-nginx-controller所在节点
+
+
+
+查看ingress-nginx的svc
+
+```bash
+kubectl get svc -n ingress-nginx
+```
+
+
+
+```bash
+root@node1:~/k8slab/svc# kubectl get svc -n ingress-nginx
+NAME                                 TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)                      AGE
+ingress-nginx-controller             NodePort    10.104.4.173     <none>        80:30193/TCP,443:32696/TCP   2m59s
+ingress-nginx-controller-admission   ClusterIP   10.101.130.249   <none>        443/TCP                      2m59s
+```
+
+
+
+使用以下范例创建ingress文件
+
+```bash
+nano katacoda.ingress.yaml 
+```
+
+
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: katacoda-ingress
+spec:
+  rules:
+  - host: hello.example.com # 主机名
+    http:
+      paths:
+      - path: / # 路径
+        pathType: Prefix
+        backend: # 后端服务
+          service:
+            name: katacoda 
+            port:
+              number: 80 
+```
+
+
+
+创建ingress
+
+```bash
+kubectl apply -f katacoda.ingress.yaml 
+```
+
+
+
+查看ingress，观察ADDRESS选项
+
+```bash
+kubectl get ingress
+```
+
+
+
+```bash
+root@node1:~/k8slab/svc# kubectl get ingress
+NAME               CLASS    HOSTS               ADDRESS                       PORTS   AGE
+katacoda-ingress   <none>   hello.example.com   192.168.1.232,192.168.1.233   80      10s
+```
+
+
+
+使用以下命令测试ingress
+
+```bash
+curl http://192.168.1.232 -H "Host: hello.example.com"
+```
+
+
+
+```bash
+root@node1:~/k8slab/svc# curl http://192.168.1.232 -H "Host: hello.example.com"
+<h1>This request was processed by host: katacoda-56dbd65b59-l5zj7</h1>
+root@node1:~/k8slab/svc# curl http://192.168.1.232 -H "Host: hello.example.com"
+<h1>This request was processed by host: katacoda-56dbd65b59-fkwbx</h1>
+root@node1:~/k8slab/svc# curl http://192.168.1.232 -H "Host: hello.example.com"
+<h1>This request was processed by host: katacoda-56dbd65b59-csltf</h1>
+```
+
+
+
+亦可修改hosts文件
+
+```bash
+cat /etc/hosts
+```
+
+
+
+```bash
+root@node1:~/k8slab/svc# cat /etc/hosts
+127.0.0.1       localhost
+
+# The following lines are desirable for IPv6 capable hosts
+::1     localhost       ip6-localhost   ip6-loopback
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+
+127.0.1.1       localhost.vm    localhost
+127.0.1.1       base    base
+127.0.1.1       node1   node1
+
+192.168.1.231 node1
+192.168.1.232 node2 nfs
+192.168.1.233 node3 hello.example.com
+```
+
+
+
+测试
+
+```bash
+curl http://hello.example.com
+```
+
+
+
+```bash
+root@node1:~/k8slab/svc# curl http://hello.example.com
+<h1>This request was processed by host: katacoda-56dbd65b59-l5zj7</h1>
+root@node1:~/k8slab/svc# curl http://hello.example.com
+<h1>This request was processed by host: katacoda-56dbd65b59-fkwbx</h1>
+root@node1:~/k8slab/svc# curl http://hello.example.com
+<h1>This request was processed by host: katacoda-56dbd65b59-csltf</h1>
+```
+
+
+
+清理deploymen和服务
+
+```bash
+kubectl delete -f katacoda.ingress.yaml 
+kubectl delete -f katasvc3.yaml 
+kubectl delete -f katasvc2.yaml 
+kubectl delete -f katasvc.yaml 
+kubectl delete -f katacoda.yaml
+kubectl delete pod test-dns
+```
+
+
+
+## 备注
+
+- 语法查询
+
+查看创建服务的帮助文件
+
+```
+kubectl create service --help
+```
+
+
+
+```
+kubectl create service clusterip --help
+```
+
+
+
+创建 katacoda deployment 示例 yaml
+
+```bash
+kubectl create deployment katacoda --image=katacoda/docker-http-server --dry-run=client -o yaml 
+```
+
+
+
+创建 cluster ip svc yaml 示例文件
+
+```
+kubectl create service clusterip katacoda --tcp 80:80 --dry-run=client -o yaml
+```
+
+
+
+创建 nodeport svc yaml 示例文件
+
+```
+kubectl create service nodeport katacoda --tcp 80:80 --dry-run=client -o yaml
+```
+
+ 上述文件需要做少量的清理工作，注意缩进，svc如果要共存，则需要在对第二个文件中的服务名进行重命名
+
+
+
+- ingress创建步骤
+
+https://segmentfault.com/a/1190000040618813
+
+```bash
+wget https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.0.0/deploy/static/provider/baremetal/deploy.yaml
+
+sed -i 's@k8s.gcr.io/ingress-nginx/controller:v1.0.0\(.*\)@willdockerhub/ingress-nginx-controller:v1.0.0@' deploy.yaml
+sed -i 's@k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0\(.*\)$@hzde0128/kube-webhook-certgen:v1.0@' deploy.yaml
+kubectl apply -f deploy.yaml
+```
 
 
 
@@ -5146,7 +5849,9 @@ nginx                       1/1     Running   0          8h    10.244.135.3    n
 
 
 
-# HPA和Dashboard
+# HPA 和 Dashboard
+
+
 
 
 
