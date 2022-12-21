@@ -2453,7 +2453,7 @@ kubectl delete -f nginx-volume-emptydir.yaml
 
 
 
-## Lab 12 使用initcontainer执行初始化作业
+## Lab 12 使用 initcontainer 执行初始化作业
 
 
 
@@ -2735,7 +2735,7 @@ kubectl delete -f nginx-initcontainer.yaml
 
 
 
-## Lab 13 设置主机host
+## Lab 13 设置主机 host
 
 
 
@@ -2907,7 +2907,7 @@ kubectl delete -f nginx-hostaliases.yaml
 
 
 
-## Lab 14 设置pod资源
+## Lab 14 设置 pod 资源
 
 
 
@@ -3181,7 +3181,7 @@ kubectl delete -f nginx-resources.yaml
 
 
 
-## Lab 15 静态Pod
+## Lab 15 静态 pod
 
 
 
@@ -3472,13 +3472,13 @@ nginx   1/1     Running   0          4h19m   10.244.135.3   node3   <none>      
 
 
 
-## Lab 16 pod健康检查
+## Lab 16 pod 健康检查
 
 
 
 使用示例文件创建yaml文件
 
-```text
+```bash
 nano nginx-healthcheck-readinessprobe.yaml
 ```
 
@@ -3584,7 +3584,7 @@ spec:
 
 创建pod
 
-```text
+```bash
 kubectl apply -f nginx-healthcheck-readinessprobe.yaml 
 ```
 
@@ -3592,27 +3592,56 @@ kubectl apply -f nginx-healthcheck-readinessprobe.yaml
 
 查看pod
 
-```text
+```bash
 kubectl get pod -o wide
 ```
 
-*多查看几次，可以观测到pod有重启现象
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl get pod -o wide
+NAME                   READY   STATUS    RESTARTS      AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+nginx                  1/1     Running   0             4h27m   10.244.135.3    node3   <none>           <none>
+nginx-readinessprobe   0/1     Running   2 (29s ago)   109s    10.244.104.16   node2   <none>          <none>
+```
+
+多查看几次，可以观测到pod有重启现象
 
 
 
 查看pod详细信息
 
-```text
+```bash
 kubectl describe pod nginx-readinessprobe
 ```
 
-*可以观察到Liveness和Readiness都有报错
+
+
+```bash
+...
+Events:
+  Type     Reason     Age                  From               Message
+  ----     ------     ----                 ----               -------
+  Normal   Scheduled  2m16s                default-scheduler  Successfully assigned default/nginx-readinessprobe to node2
+  Normal   Pulling    2m16s                kubelet            Pulling image "busybox"
+  Normal   Pulled     2m16s                kubelet            Successfully pulled image "busybox" in 336.609183ms
+  Normal   Created    2m16s                kubelet            Created container pullcode
+  Normal   Started    2m15s                kubelet            Started container pullcode
+  Normal   Pulling    2m15s                kubelet            Pulling image "nginx"
+  Normal   Pulled     119s                 kubelet            Successfully pulled image "nginx" in 15.311334882s
+  Normal   Created    119s                 kubelet            Created container nginx
+  Normal   Started    119s                 kubelet            Started container nginx
+  Warning  Unhealthy  107s                 kubelet            Liveness probe failed: dial tcp 10.244.104.16:8080: connect: connection refused
+  Warning  Unhealthy  99s (x16 over 114s)  kubelet            Readiness probe failed: Get "http://10.244.104.16:8080/": dial tcp 10.244.104.16:8080: connect: connection refused
+```
+
+可以观察到 `Liveness` 和 `Readiness` 都有报错
 
 
 
-删除pod
+删除 pod
 
-```text
+```bash
 kubectl delete -f nginx-healthcheck-readinessprobe.yaml 
 ```
 
@@ -3620,17 +3649,29 @@ kubectl delete -f nginx-healthcheck-readinessprobe.yaml
 
 修改yaml文件
 
-```text
+```bash
 nano nginx-healthcheck-readinessprobe.yaml
 ```
 
-*将livenessProbe的端口号改为80
+
+
+```yaml
+ livenessProbe:  # 存活检查，端口探活
+      tcpSocket:
+        port: 80
+      periodSeconds: 10
+      timeoutSeconds: 1
+      failureThreshold: 3
+      successThreshold: 1
+```
+
+将 `livenessProbe` 的端口号改为80
 
 
 
 重新创建pod
 
-```text
+```bash
 kubectl apply -f nginx-healthcheck-readinessprobe.yaml 
 ```
 
@@ -3638,27 +3679,54 @@ kubectl apply -f nginx-healthcheck-readinessprobe.yaml
 
 查看pod
 
-```text
+```bash
 kubectl get pod -o wide
 ```
 
-*多查看几次，pod虽然不再重启，但是一直未能就绪
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl get pod -o wide
+NAME                   READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+nginx                  1/1     Running   0          4h34m   10.244.135.3    node3   <none>           <none>
+nginx-readinessprobe   0/1     Running   0          82s     10.244.104.18   node2   <none>           <none>
+```
+
+多查看几次，pod虽然不再重启，但是一直未能就绪
 
 
 
 查看pod详细信息
 
-```text
+```bash
 kubectl describe pod nginx-readinessprobe
 ```
 
-*可以观察到Readiness还有报错
+
+
+```bash
+Events:
+  Type     Reason     Age                 From               Message
+  ----     ------     ----                ----               -------
+  Normal   Scheduled  102s                default-scheduler  Successfully assigned default/nginx-readinessprobe to node2
+  Normal   Pulling    101s                kubelet            Pulling image "busybox"
+  Normal   Pulled     86s                 kubelet            Successfully pulled image "busybox" in 15.263132583s
+  Normal   Created    86s                 kubelet            Created container pullcode
+  Normal   Started    86s                 kubelet            Started container pullcode
+  Normal   Pulling    85s                 kubelet            Pulling image "nginx"
+  Normal   Pulled     70s                 kubelet            Successfully pulled image "nginx" in 15.275607139s
+  Normal   Created    70s                 kubelet            Created container nginx
+  Normal   Started    70s                 kubelet            Started container nginx
+  Warning  Unhealthy  49s (x17 over 65s)  kubelet            Readiness probe failed: Get "http://10.244.104.18:8080/": dial tcp 10.244.104.18:8080: connect: connection refused
+```
+
+可以观察到Readiness还有报错
 
 
 
 删除pod
 
-```text
+```bash
 kubectl delete -f nginx-healthcheck-readinessprobe.yaml 
 ```
 
@@ -3666,17 +3734,30 @@ kubectl delete -f nginx-healthcheck-readinessprobe.yaml
 
 修改yaml文件
 
-```text
+```bash
 nano nginx-healthcheck-readinessprobe.yaml
 ```
 
-*将readinessProbe的端口号改为80
+
+
+```bash
+ readinessProbe: # 就绪检查，路径探活
+      httpGet:
+        port: 80
+        path: /
+      periodSeconds: 1
+      timeoutSeconds: 1
+      failureThreshold: 3
+      successThreshold: 1
+```
+
+将readinessProbe的端口号改为80
 
 
 
 重新创建pod
 
-```text
+```bash
 kubectl apply -f nginx-healthcheck-readinessprobe.yaml 
 ```
 
@@ -3684,27 +3765,53 @@ kubectl apply -f nginx-healthcheck-readinessprobe.yaml
 
 查看pod
 
-```text
+```bash
 kubectl get pod -o wide
 ```
 
-*pod应该很快完全就绪
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl get pod -o wide
+NAME                   READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+nginx                  1/1     Running   0          4h37m   10.244.135.3    node3   <none>           <none>
+nginx-readinessprobe   1/1     Running   0          60s     10.244.104.19   node2   <none>           <none>
+```
+
+pod应该很快完全就绪
 
 
 
 查看pod详细信息
 
-```text
+```bash
 kubectl describe pod nginx-readinessprobe
 ```
 
-*除了查看Events中没有报错信息之外，重点查看Condition中各个阶段是否都已经Ready
+
+
+```bash
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  85s   default-scheduler  Successfully assigned default/nginx-readinessprobe to node2
+  Normal  Pulling    84s   kubelet            Pulling image "busybox"
+  Normal  Pulled     69s   kubelet            Successfully pulled image "busybox" in 15.293741464s
+  Normal  Created    69s   kubelet            Created container pullcode
+  Normal  Started    69s   kubelet            Started container pullcode
+  Normal  Pulling    68s   kubelet            Pulling image "nginx"
+  Normal  Pulled     53s   kubelet            Successfully pulled image "nginx" in 15.309241357s
+  Normal  Created    53s   kubelet            Created container nginx
+  Normal  Started    53s   kubelet            Started container nginx
+```
+
+除了查看Events中没有报错信息之外，重点查看Condition中各个阶段是否都已经Ready
 
 
 
 清理pod
 
-```text
+```bash
  kubectl delete -f nginx-healthcheck-readinessprobe.yaml 
 ```
 
@@ -3714,19 +3821,41 @@ kubectl describe pod nginx-readinessprobe
 
 
 
-备注
+## 备注
+
+- 语法查询
+
+查询pods语法
+
+```bash
+kuectl explain pods
+```
 
 
 
-1.更多实操所需脚本信息请参考github repo：
+查询pods详细语法
 
-[cloudzun/k8slabgithub.com/cloudzun/k8slab](https://link.zhihu.com/?target=https%3A//github.com/cloudzun/k8slab)
+```bash
+kubectl explain pods --recursive
 
-2.如果需要更多的实验操作指导，请留言或私信。
+kubectl explain pods --recursive | more 
+```
 
-\3. 换源，使用清华大学debian源
 
-```text
+
+- kubectl 开机自启
+
+```bash
+systemctl start kubelet
+
+sudo systemctl start kubelet && sudo systemctl enable kubelet
+```
+
+
+
+- 换源，使用清华大学debian源
+
+```bash
 cat > /etc/apt/sources.list << EOF 
 deb Index of /debian/ buster main contrib non-free
 # deb-src Index of /debian/ buster main contrib non-free
@@ -3739,103 +3868,1094 @@ deb Index of /debian-security/ buster/updates main contrib non-free
 EOF
 ```
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
  
 
 
 
 # 工作负载调度
+
+
+
+## Lab 1 使用 deployment 维护服务数量
+
+
+
+使用以下命令生成deployment的原始配置
+
+```bash
+kubectl create deployment webserver --image=nginx --dry-run=client -o yaml 
+```
+
+
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null # 删掉
+  labels:
+    app: webserver
+  name: webserver
+spec:
+  replicas: 1 # 定义副本数量
+  selector: # 通过lable定义所管理的pod
+    matchLabels:
+      app: webserver
+  strategy: {} # 定义滚动升级的策略
+  template: # 此处以下替换成pod yaml文件，注意缩进
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: webserver # 使用相同的lable和deployment保持对仗工整
+    spec:
+      containers:
+      - image: nginx
+        name: nginx
+        resources: {}
+status: {} #删掉
+```
+
+
+
+将之前的pod的最简版本的 yaml 文件整合（copy）进来，注意缩进以及 Pod 的 `label` 和depolyment的 `lable` 保持一致（）
+
+
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: webserver
+  name: webserver
+spec:
+  replicas: 1 # 定义副本数量
+  selector: # 通过lable定义所管理的pod
+    matchLabels:
+      app: webserver
+  strategy: {} # 定义滚动升级的策略
+  template: # 此处以下替换成pod yaml文件，注意缩进
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: webserver # 使用相同的lable和deployment保持对仗工整
+    spec:
+      containers:
+      - image: nginx:1.7.9
+        name: nginx
+        resources: {}
+```
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano deployment.yaml
+```
+
+
+
+创建deployment
+
+```bash
+kubectl apply -f deployment.yaml
+```
+
+
+
+查看deployment列表
+
+```bash
+kubectl get deployment -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl get deployment -o wide
+NAME        READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES        SELECTOR
+webserver   1/1     1            1           33s   nginx        nginx:1.7.9   app=webserver
+```
+
+
+
+查看 deployment 细节
+
+```bash
+kubectl describe deployment webserver
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl describe deployment webserver
+Name:                   webserver
+Namespace:              default
+CreationTimestamp:      Wed, 21 Dec 2022 14:26:32 +0800
+Labels:                 app=webserver
+Annotations:            deployment.kubernetes.io/revision: 1
+Selector:               app=webserver
+Replicas:               1 desired | 1 updated | 1 total | 1 available | 0 unavailable
+StrategyType:           RollingUpdate
+MinReadySeconds:        0
+RollingUpdateStrategy:  25% max unavailable, 25% max surge
+Pod Template:
+  Labels:  app=webserver
+  Containers:
+   nginx:
+    Image:        nginx:1.7.9
+    Port:         <none>
+    Host Port:    <none>
+    Environment:  <none>
+    Mounts:       <none>
+  Volumes:        <none>
+Conditions:
+  Type           Status  Reason
+  ----           ------  ------
+  Available      True    MinimumReplicasAvailable
+  Progressing    True    NewReplicaSetAvailable
+OldReplicaSets:  <none>
+NewReplicaSet:   webserver-6b7c64974d (1/1 replicas created)
+Events:
+  Type    Reason             Age   From                   Message
+  ----    ------             ----  ----                   -------
+  Normal  ScalingReplicaSet  58s   deployment-controller  Scaled up replica set webserver-6b7c64974d to 1
+```
+
+
+
+```bash
+kubectl get deployment -o yaml
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl get deployment -o yaml
+apiVersion: v1
+items:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app":"webserver"},"name":"webserver","namespace":"default"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"webserver"}},"strategy":{},"template":{"metadata":{"creationTimestamp":null,"labels":{"app":"webserver"}},"spec":{"containers":[{"image":"nginx:1.7.9","name":"nginx","resources":{}}]}}}}
+    creationTimestamp: "2022-12-21T06:26:32Z"
+    generation: 1
+    labels:
+      app: webserver
+    name: webserver
+    namespace: default
+    resourceVersion: "29339"
+    uid: 6034b236-d394-47d9-922a-53f0fa459552
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: webserver
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: webserver
+      spec:
+        containers:
+        - image: nginx:1.7.9
+          imagePullPolicy: IfNotPresent
+          name: nginx
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2022-12-21T06:26:56Z"
+      lastUpdateTime: "2022-12-21T06:26:56Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2022-12-21T06:26:32Z"
+      lastUpdateTime: "2022-12-21T06:26:56Z"
+      message: ReplicaSet "webserver-6b7c64974d" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+kind: List
+metadata:
+  resourceVersion: ""
+  selfLink: ""
+```
+
+
+
+查看pod
+
+```bash
+kubectl get pod -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl get pod -o wide
+NAME                         READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+nginx                        1/1     Running   0          4h57m   10.244.135.3    node3   <none>           <none>
+webserver-6b7c64974d-4qrtz   1/1     Running   0          2m29s   10.244.104.20   node2   <none>           <none>
+```
+
+注意新建 pod 的名称
+
+
+
+删除某个pod
+
+```bash
+kubectl delete pod webserver-6b7c64974d-4qrtz
+```
+
+
+
+观测pod重建过程
+
+```text
+kubectl get pod -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl delete pod webserver-6b7c64974d-4qrtz
+pod "webserver-6b7c64974d-4qrtz" deleted
+root@node1:~/k8slab/deployment# kubectl get pod -o wide
+NAME                         READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+nginx                        1/1     Running   0          4h58m   10.244.135.3    node3   <none>           <none>
+webserver-6b7c64974d-77g4f   1/1     Running   0          10s     10.244.104.21   node2   <none>           <none>
+```
+
+
+
+编辑deployment，将副本数调整成5个
+
+```bash
+KUBE_EDITOR="nano" kubectl edit deployment webserver
+```
+
+
+
+```yaml
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 5 # 调整此处的副本数量
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: webserver
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+```
+
+
+
+观测pod横向扩展过程
+
+```text
+kubectl get pod 
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl get pod -o wide
+NAME                         READY   STATUS              RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+nginx                        1/1     Running             0          5h1m    10.244.135.3    node3   <none>           <none>
+webserver-6b7c64974d-2t575   1/1     Running             0          9s      10.244.104.23   node2   <none>           <none>
+webserver-6b7c64974d-77g4f   1/1     Running             0          2m27s   10.244.104.21   node2   <none>           <none>
+webserver-6b7c64974d-cn9cc   0/1     ContainerCreating   0          9s      <none>          node3   <none>           <none>
+webserver-6b7c64974d-cxd82   0/1     ContainerCreating   0          9s      <none>          node3   <none>           <none>
+webserver-6b7c64974d-wwn2j   1/1     Running             0          9s      10.244.104.22   node2   <none>           <none>
+root@node1:~/k8slab/deployment# kubectl get pod
+NAME                         READY   STATUS    RESTARTS   AGE
+nginx                        1/1     Running   0          5h1m
+webserver-6b7c64974d-2t575   1/1     Running   0          41s
+webserver-6b7c64974d-77g4f   1/1     Running   0          2m59s
+webserver-6b7c64974d-cn9cc   1/1     Running   0          41s
+webserver-6b7c64974d-cxd82   1/1     Running   0          41s
+webserver-6b7c64974d-wwn2j   1/1     Running   0          41s
+```
+
+
+
+使用命令进行收缩
+
+```bash
+kubectl scale deployment webserver --replicas=3
+```
+
+
+
+观测pod横向扩展过程
+
+```bash
+kubectl get pod -o wide -w 
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl scale deployment webserver --replicas=3
+deployment.apps/webserver scaled
+root@node1:~/k8slab/deployment# kubectl get pod
+NAME                         READY   STATUS    RESTARTS   AGE
+nginx                        1/1     Running   0          5h2m
+webserver-6b7c64974d-77g4f   1/1     Running   0          4m6s
+webserver-6b7c64974d-cn9cc   1/1     Running   0          108s
+webserver-6b7c64974d-cxd82   1/1     Running   0          108s
+```
+
+
+
+查看 deployment 伸缩历史
+
+```bash
+kubectl describe deployment webserver
+```
+
+
+
+```bash
+Events:
+  Type    Reason             Age    From                   Message
+  ----    ------             ----   ----                   -------
+  Normal  ScalingReplicaSet  8m34s  deployment-controller  Scaled up replica set webserver-6b7c64974d to 1
+  Normal  ScalingReplicaSet  2m49s  deployment-controller  Scaled up replica set webserver-6b7c64974d to 5
+  Normal  ScalingReplicaSet  64s    deployment-controller  Scaled down replica set webserver-6b7c64974d to 3
+```
+
+
+
+删除deployment
+
+```bash
+kubectl delete -f deployment.yaml 
+```
+
+
+
+## Lab 2  使用 deployment 实现滚动更新
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano webserver-strategy.yaml
+```
+
+
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: webserver-strategy
+  name: webserver-strategy
+spec:
+  replicas: 6
+  selector:
+    matchLabels:
+      app: webserver-strategy
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:  # 滚动更新策略
+      maxUnavailable: 2 # 先下线两个
+      maxSurge: 0
+  template:
+    metadata:
+      name: webserver
+      namespace: default
+      labels:
+        app: webserver-strategy
+    spec:
+      containers:
+      - image: nginx:1.7.9
+        name: nginx
+        resources: {}
+```
+
+
+
+创建 deployment
+
+```bash
+kubectl apply -f webserver-strategy.yaml 
+```
+
+
+
+查看 deployment 列表,关注 pod 节点数映像版本信息
+
+```bash
+kubectl get deployment -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl get deployment -o wide
+NAME                 READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES        SELECTOR
+webserver-strategy   6/6     6            6           28s   nginx        nginx:1.7.9   app=webserver-strategy
+```
+
+
+
+查看 deployment 细节，确定目前的 deployment 的滚动更新策略：`RollingUpdateStrategy`
+
+```bash
+kubectl describe deployment webserver-strategy
+```
+
+
+
+```bash
+RollingUpdateStrategy:  2 max unavailable, 0 max surge
+Pod Template:
+  Labels:  app=webserver-strategy
+  Containers:
+   nginx:
+    Image:        nginx:1.7.9
+    Port:         <none>
+    Host Port:    <none>
+    Environment:  <none>
+    Mounts:       <none>
+  Volumes:        <none>
+```
+
+
+
+修改deployment配置，将映像版本提升到1.8
+
+```bash
+kubectl set image deployment webserver-strategy nginx=nginx:1.8
+```
+
+
+
+观察pod滚动升级过程
+
+```text
+kubectl get pod -o wide -w 
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl get pod -o wide -w
+NAME                                  READY   STATUS              RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+nginx                                 1/1     Running             0          5h19m   10.244.135.3    node3   <none>           <none>
+webserver-strategy-568bc9cf6b-rt4qg   1/1     Terminating         0          80s     10.244.135.22   node3   <none>           <none>
+webserver-strategy-568bc9cf6b-zplmv   1/1     Terminating         0          76s     10.244.104.41   node2   <none>           <none>
+webserver-strategy-5c5fcb9b54-2jl95   1/1     Running             0          4s      10.244.135.26   node3   <none>           <none>
+webserver-strategy-5c5fcb9b54-46xxv   0/1     ContainerCreating   0          2s      <none>          node2   <none>           <none>
+webserver-strategy-5c5fcb9b54-4djbg   0/1     ContainerCreating   0          1s      <none>          node3   <none>           <none>
+webserver-strategy-5c5fcb9b54-4hdz8   1/1     Running             0          8s      10.244.135.25   node3   <none>           <none>
+webserver-strategy-5c5fcb9b54-b4ptl   1/1     Running             0          5s      10.244.104.43   node2   <none>           <none>
+webserver-strategy-5c5fcb9b54-ftqnf   1/1     Running             0          8s      10.244.104.42   node2   <none>           <none>
+webserver-strategy-5c5fcb9b54-4djbg   0/1     ContainerCreating   0          2s      <none>          node3   <none>           <none>
+webserver-strategy-568bc9cf6b-rt4qg   0/1     Terminating         0          81s     10.244.135.22   node3   <none>           <none>
+webserver-strategy-568bc9cf6b-rt4qg   0/1     Terminating         0          81s     10.244.135.22   node3   <none>           <none>
+webserver-strategy-568bc9cf6b-rt4qg   0/1     Terminating         0          81s     10.244.135.22   node3   <none>           <none>
+webserver-strategy-568bc9cf6b-zplmv   0/1     Terminating         0          77s     <none>          node2   <none>           <none>
+webserver-strategy-568bc9cf6b-zplmv   0/1     Terminating         0          77s     <none>          node2   <none>           <none>
+webserver-strategy-568bc9cf6b-zplmv   0/1     Terminating         0          77s     <none>          node2   <none>           <none>
+webserver-strategy-5c5fcb9b54-46xxv   1/1     Running             0          3s      10.244.104.44   node2   <none>           <none>
+webserver-strategy-5c5fcb9b54-4djbg   1/1     Running             0          3s      10.244.135.27   node3   <none>           <none>
+
+```
+
+
+
+借助 lens 进行观察
+
+![image-20221221150836318](README.assets/image-20221221150836318.png)
+
+
+
+查看deployment列表,重点关注映像版本信息
+
+```bash
+kubectl get deployment -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl get deployment -o wide
+NAME                 READY   UP-TO-DATE   AVAILABLE   AGE    CONTAINERS   IMAGES      SELECTOR
+webserver-strategy   6/6     6            6           5m7s   nginx        nginx:1.8   app=webserver-strategy
+```
+
+
+
+修改deployment滚动升级配置，配置为以下设置
+
+```yaml
+nano webserver-strategy.yaml
+      maxSurge: 2 #先上线两个
+      maxUnavailable: 0
+```
+
+
+
+更新deployment
+
+```bash
+kubectl apply -f webserver-strategy.yaml 
+```
+
+
+
+查看deployment细节，确定目前的deployment的滚动更新策略
+
+```bash
+kubectl describe deployment webserver-strategy
+```
+
+
+
+```bash
+RollingUpdateStrategy:  0 max unavailable, 2 max surge
+Pod Template:
+  Labels:  app=webserver-strategy
+  Containers:
+   nginx:
+    Image:        nginx:1.7.9
+    Port:         <none>
+    Host Port:    <none>
+    Environment:  <none>
+    Mounts:       <none>
+  Volumes:        <none>
+```
+
+
+
+修改deployment配置，将映像版本提升到1.9.1
+
+```text
+kubectl set image deployment webserver-strategy nginx=nginx:1.9.1
+```
+
+
+
+观测pod滚动升级过程
+
+```text
+kubectl get pod -o wide -w 
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl get pod -o wide -w
+NAME                                  READY   STATUS              RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+nginx                                 1/1     Running             0          5h26m   10.244.135.3    node3   <none>           <none>
+webserver-strategy-568bc9cf6b-87k54   1/1     Running             0          12s     10.244.135.35   node3   <none>           <none>
+webserver-strategy-568bc9cf6b-f9rmk   1/1     Running             0          12s     10.244.104.52   node2   <none>           <none>
+webserver-strategy-568bc9cf6b-lsx6w   1/1     Terminating         0          14s     10.244.104.51   node2   <none>           <none>
+webserver-strategy-568bc9cf6b-t9mzt   1/1     Running             0          14s     10.244.135.34   node3   <none>           <none>
+webserver-strategy-7c646cdb9b-67pwv   1/1     Running             0          5s      10.244.135.37   node3   <none>           <none>
+webserver-strategy-7c646cdb9b-ccnpw   1/1     Running             0          3s      10.244.104.55   node2   <none>           <none>
+webserver-strategy-7c646cdb9b-fkdpr   0/1     ContainerCreating   0          2s      <none>          node3   <none>           <none>
+webserver-strategy-7c646cdb9b-nnqdc   1/1     Running             0          5s      10.244.104.54   node2   <none>           <none>
+webserver-strategy-7c646cdb9b-vj6w2   0/1     ContainerCreating   0          1s      <none>          node2   <none>           <none>
+webserver-strategy-568bc9cf6b-lsx6w   1/1     Terminating         0          14s     10.244.104.51   node2   <none>           <none>
+webserver-strategy-7c646cdb9b-fkdpr   1/1     Running             0          2s      10.244.135.38   node3   <none>           <none>
+webserver-strategy-568bc9cf6b-t9mzt   1/1     Terminating         0          14s     10.244.135.34   node3   <none>           <none>
+webserver-strategy-7c646cdb9b-jq7n8   0/1     Pending             0          0s      <none>          <none>   <none>           <none>
+webserver-strategy-7c646cdb9b-jq7n8   0/1     Pending             0          0s      <none>          node3    <none>           <none>
+webserver-strategy-7c646cdb9b-jq7n8   0/1     ContainerCreating   0          0s      <none>          node3    <none>           <none>
+webserver-strategy-568bc9cf6b-t9mzt   1/1     Terminating         0          14s     10.244.135.34   node3    <none>           <none>
+webserver-strategy-568bc9cf6b-lsx6w   0/1     Terminating         0          14s     10.244.104.51   node2    <none>           <none>
+webserver-strategy-568bc9cf6b-lsx6w   0/1     Terminating         0          14s     10.244.104.51   node2    <none>           <none>
+webserver-strategy-568bc9cf6b-lsx6w   0/1     Terminating         0          14s     10.244.104.51   node2    <none>           <none>
+webserver-strategy-7c646cdb9b-vj6w2   0/1     ContainerCreating   0          2s      <none>          node2    <none>           <none>
+webserver-strategy-568bc9cf6b-t9mzt   0/1     Terminating         0          15s     10.244.135.34   node3    <none>           <none>
+webserver-strategy-568bc9cf6b-t9mzt   0/1     Terminating         0          15s     10.244.135.34   node3    <none>           <none>
+webserver-strategy-568bc9cf6b-t9mzt   0/1     Terminating         0          15s     10.244.135.34   node3    <none>           <none>
+webserver-strategy-7c646cdb9b-jq7n8   0/1     ContainerCreating   0          1s      <none>          node3    <none>           <none>
+webserver-strategy-7c646cdb9b-vj6w2   1/1     Running             0          2s      10.244.104.56   node2    <none>           <none>
+webserver-strategy-568bc9cf6b-87k54   1/1     Terminating         0          13s     10.244.135.35   node3    <none>           <none>
+webserver-strategy-568bc9cf6b-87k54   1/1     Terminating         0          14s     10.244.135.35   node3    <none>           <none>
+webserver-strategy-7c646cdb9b-jq7n8   1/1     Running             0          2s      10.244.135.39   node3    <none>           <none>
+webserver-strategy-568bc9cf6b-f9rmk   1/1     Terminating         0          14s     10.244.104.52   node2    <none>           <none>
+webserver-strategy-568bc9cf6b-f9rmk   1/1     Terminating         0          14s     10.244.104.52   node2    <none>           <none>
+webserver-strategy-568bc9cf6b-87k54   0/1     Terminating         0          15s     <none>          node3    <none>           <none>
+webserver-strategy-568bc9cf6b-87k54   0/1     Terminating         0          15s     <none>          node3    <none>           <none>
+webserver-strategy-568bc9cf6b-87k54   0/1     Terminating         0          15s     <none>          node3    <none>           <none>
+webserver-strategy-568bc9cf6b-f9rmk   0/1     Terminating         0          15s     <none>          node2    <none>           <none>
+webserver-strategy-568bc9cf6b-f9rmk   0/1     Terminating         0          15s     <none>          node2    <none>           <none>
+webserver-strategy-568bc9cf6b-f9rmk   0/1     Terminating         0          15s     <none>          node2    <none>           <none>
+```
+
+
+
+借助 lens 进行观察
+
+![image-20221221150628729](README.assets/image-20221221150628729.png)
+
+
+
+查看版本历史信息
+
+```bash
+kubectl rollout history deployment/webserver-strategy
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl rollout history deployment/webserver-strategy
+deployment.apps/webserver-strategy
+REVISION  CHANGE-CAUSE
+2         <none>
+3         <none>
+4         <none>
+```
+
+
+
+查看历史版本
+
+```bash
+kubectl rollout history deployment/webserver-strategy  --revision=3
+```
+
+
+
+```bash
+kubectl rollout history deployment/webserver-strategy  --revision=2
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl rollout history deployment/webserver-strategy  --revision=3
+deployment.apps/webserver-strategy with revision #3
+Pod Template:
+  Labels:       app=webserver-strategy
+        pod-template-hash=568bc9cf6b
+  Containers:
+   nginx:
+    Image:      nginx:1.7.9
+    Port:       <none>
+    Host Port:  <none>
+    Environment:        <none>
+    Mounts:     <none>
+  Volumes:      <none>
+
+root@node1:~/k8slab/deployment# kubectl rollout history deployment/webserver-strategy  --revision=2
+deployment.apps/webserver-strategy with revision #2
+Pod Template:
+  Labels:       app=webserver-strategy
+        pod-template-hash=5c5fcb9b54
+  Containers:
+   nginx:
+    Image:      nginx:1.8
+    Port:       <none>
+    Host Port:  <none>
+    Environment:        <none>
+    Mounts:     <none>
+  Volumes:      <none>
+```
+
+
+
+回滚到ver 2版本
+
+```bash
+kubectl rollout undo deployment/webserver-strategy --to-revision=2
+```
+
+
+
+验证回滚结果
+
+```text
+kubectl get deployment -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl get deployment -o wide
+NAME                 READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES      SELECTOR
+webserver-strategy   6/6     6            6           10m   nginx        nginx:1.8   app=webserver-strategy
+```
+
+
+
+删除deployment
+
+```text
+kubectl delete -f webserver-strategy.yaml
+```
+
+
+
+## Lab 3 StatefulSet
+
+
+
+使用示例文件创建yaml文件
+
+```text
+nano webserver.yaml
+```
+
+
+
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: webserver
+  name: webserver
+spec:
+  serviceName: webserver
+  replicas: 3
+  selector:
+    matchLabels:
+      app: webserver
+  template:
+    metadata:
+      name: webserver
+      namespace: default
+      labels:
+        app: webserver
+    spec:
+      dnsPolicy: Default
+      hostNetwork: false
+      restartPolicy: Always
+      hostAliases:
+      - ip: "192.168.0.181"
+        hostnames:
+        - "cka01"
+      - ip: "192.168.0.41"
+        hostnames:
+        - "cka02"
+      - ip: "192.168.0.241"
+        hostnames:
+        - "cka03"
+      volumes:
+      - name: web-root
+        hostPath:
+          path: /data
+      - name: web-path
+        emptyDir: 
+      initContainers:
+      - name: pullcode
+        image: busybox
+        volumeMounts:
+        - name: web-path
+          mountPath: /data
+        command:
+        - /bin/sh
+        - -c
+        - "echo hello > /data/index.html; touch /data/healthy"
+      containers:
+      - name: nginx
+        image: nginx:1.7.9
+        imagePullPolicy: Always
+        resources:
+          requests:
+            cpu: "0.1"
+            memory: "32Mi"
+          limits:
+            cpu: "0.2"
+            memory: "64Mi"
+        startupProbe:
+          exec:
+            command:
+              - /bin/sh
+              - -c
+              - "cat /usr/share/nginx/html/healthy"
+          initialDelaySeconds: 5 
+          periodSeconds: 1
+          timeoutSeconds: 1
+          failureThreshold: 18
+          successThreshold: 1 
+        livenessProbe:
+          tcpSocket:
+            port: 80
+          periodSeconds: 10
+          timeoutSeconds: 1
+          failureThreshold: 3
+          successThreshold: 1 
+        readinessProbe:
+          httpGet:
+            port: 80
+            path: /
+          periodSeconds: 1
+          timeoutSeconds: 1
+          failureThreshold: 3
+          successThreshold: 1 
+        volumeMounts:
+        - name: web-root
+          mountPath: /data
+        - name: web-path
+          mountPath: /usr/share/nginx/html
+        env:
+        - name: mysqlhost
+          value: "10.96.0.110"
+        - name: mysqlport
+          value: "3306"
+        - name: mysqldb
+          value: "wordpress"
+        ports:
+        - name: web-port
+          containerPort: 80
+          protocol: TCP
+```
+
+
+
+创建StatefulSet
+
+```text
+kubectl apply -f webserver.yaml
+```
+
+
+
+查看pod创建过程
+
+```text
+kubectl get pod -o wide -w
+```
+
+*关注pod的名称和ip地址
+
+
+
+查看StatefulSet
+
+```text
+kubectl get sts -o wide
+```
+
+
+
+```text
+kubectl get sts -o yaml
+```
+
+
+
+查看StatefulSet细节
+
+```text
+kubectl describe sts webserver
+```
+
+*关注UpdateStrategy
+
+
+
+修改StatefulSet配置，将映像版本提升到1.9.1
+
+```text
+kubectl set image sts webserver nginx=nginx:1.9.1
+```
+
+
+
+观测pod滚动升级过程
+
+```text
+kubectl get pod -o wide -w 
+```
+
+
+
+删除StatefulSet
+
+```text
+kubectl delete -f webserver.yaml
+```
+
+
+
+## Lab 4 Job和CornJob
+
+
+
+使用示例文件创建yaml文件
+
+```text
+nano job.yaml
+```
+
+
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pi
+spec:
+  template:
+    spec:
+      containers:
+      - name: pi
+        image: resouer/ubuntu-bc 
+        command: ["sh", "-c", "echo 'scale=1000; 4*a(1)' | bc -l "]
+      restartPolicy: Never
+  backoffLimit: 4
+```
+
+
+
+创建job
+
+```text
+kubectl create -f job.yaml
+```
+
+
+
+观察对应的pod，几秒之后运算结束，pod会进入到completed状态
+
+```text
+kubectl get pod -o wide
+```
+
+
+
+查看运算结果
+
+```text
+kubectl logs pi-xxx
+```
+
+
+
+查看job对象
+
+```text
+kubectl describe jobs/pi
+```
+
+
+
+查看jobs
+
+```text
+kubectl get jobs -o wide
+```
+
+
+
+删除job
+
+```text
+kubectl delete -f job.yaml
+```
+
+
+
+使用示例文件创建yaml文件
+
+```text
+nano cronjob.yaml
+```
+
+
+
+```yaml
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: hello
+spec:
+  schedule: "*/1 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: hello
+            image: busybox
+            args:
+            - /bin/sh
+            - -c
+            - date; echo Hello from the Kubernetes cluster
+          restartPolicy: OnFailure
+```
+
+
+
+创建cornjob
+
+```text
+kubectl create -f cronjob.yaml
+```
+
+
+
+查看pods
+
+```text
+kubectl get pod -o wide
+```
+
+
+
+每隔一分钟执行一次查看jobs
+
+```text
+kubectl get jobs -o wide
+```
+
+
+
+查看cronjob
+
+```text
+kubectl get cronjob hello
+```
+
+
+
+删除cornjob
+
+```text
+kubectl delete -f cronjob.yaml
+```
+
+
 
 
 
