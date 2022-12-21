@@ -1,1 +1,3865 @@
-# k8s-basic
+# K8S群集的安装
+
+
+
+## 手动安装
+
+
+
+## 使用 sealyun 快速安装
+
+
+
+## 使用在线沙盒
+
+
+
+# 解析Pod
+
+
+
+克隆实验脚本
+
+```bash
+git clone https://github.com/cloudzun/k8slab/
+
+cd k8slab/
+
+git branch -a
+
+git checkout v1.23
+```
+
+
+
+## Lab 1 极简创建 Pod
+
+
+
+使用命令行创建pod，注意两个必须的属性名称和映像
+
+```bash
+kubectl run nginx --image=nginx
+```
+
+
+
+查看pod
+
+```bash
+kubectl get pods
+```
+
+
+
+```bash
+root@node1:~/k8slab# kubectl get pods
+NAME    READY   STATUS    RESTARTS   AGE
+nginx   1/1     Running   0          97s
+```
+
+
+
+观测其他属性，比如 ip 地址，所在节点
+
+```bash
+kubectl get pods -o wide 
+```
+
+
+
+```bash
+NAME    READY   STATUS    RESTARTS   AGE    IP             NODE    NOMINATED NODE   READINESS GATES
+nginx   1/1     Running   0          116s   10.244.135.2   node3   <none>           <none>
+```
+
+
+
+删除现有 pod，准备另起炉灶
+
+```bash
+kubectl delete pod nginx
+```
+
+
+
+```bash
+root@node1:~/k8slab# kubectl delete pod nginx
+pod "nginx" deleted
+```
+
+
+
+查看 yaml 样例
+
+```bash
+kubectl run nginx --image=nginx --dry-run=client -o yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    run: nginx
+  name: nginx
+spec:
+  containers:
+  - image: nginx
+    name: nginx
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+status: {}
+```
+
+
+
+查看 kind 定义
+
+```bash
+kubectl api-resources
+```
+
+
+
+```bash
+root@node1:~/k8slab# kubectl api-resources
+NAME                              SHORTNAMES   APIVERSION                             NAMESPACED   KIND
+bindings                                       v1                                     true         Binding
+componentstatuses                 cs           v1                                     false        ComponentStatus
+configmaps                        cm           v1                                     true         ConfigMap
+endpoints                         ep           v1                                     true         Endpoints
+events                            ev           v1                                     true         Event
+limitranges                       limits       v1                                     true         LimitRange
+namespaces                        ns           v1                                     false        Namespace
+nodes                             no           v1                                     false        Node
+persistentvolumeclaims            pvc          v1                                     true         PersistentVolumeClaim
+persistentvolumes                 pv           v1                                     false        PersistentVolume
+pods                              po           v1                                     true         Pod
+podtemplates                                   v1                                     true         PodTemplate
+replicationcontrollers            rc           v1                                     true         ReplicationController
+resourcequotas                    quota        v1                                     true         ResourceQuota
+secrets                                        v1                                     true         Secret
+serviceaccounts                   sa           v1                                     true         ServiceAccount
+services                          svc          v1                                     true         Service
+mutatingwebhookconfigurations                  admissionregistration.k8s.io/v1        false        MutatingWebhookConfiguration
+validatingwebhookconfigurations                admissionregistration.k8s.io/v1        false        ValidatingWebhookConfiguration
+customresourcedefinitions         crd,crds     apiextensions.k8s.io/v1                false        CustomResourceDefinition
+apiservices                                    apiregistration.k8s.io/v1              false        APIService
+controllerrevisions                            apps/v1                                true         ControllerRevision
+daemonsets                        ds           apps/v1                                true         DaemonSet
+deployments                       deploy       apps/v1                                true         Deployment
+replicasets                       rs           apps/v1                                true         ReplicaSet
+statefulsets                      sts          apps/v1                                true         StatefulSet
+tokenreviews                                   authentication.k8s.io/v1               false        TokenReview
+localsubjectaccessreviews                      authorization.k8s.io/v1                true         LocalSubjectAccessReview
+selfsubjectaccessreviews                       authorization.k8s.io/v1                false        SelfSubjectAccessReview
+selfsubjectrulesreviews                        authorization.k8s.io/v1                false        SelfSubjectRulesReview
+subjectaccessreviews                           authorization.k8s.io/v1                false        SubjectAccessReview
+horizontalpodautoscalers          hpa          autoscaling/v2                         true         HorizontalPodAutoscaler
+cronjobs                          cj           batch/v1                               true         CronJob
+jobs                                           batch/v1                               true         Job
+certificatesigningrequests        csr          certificates.k8s.io/v1                 false        CertificateSigningRequest
+leases                                         coordination.k8s.io/v1                 true         Lease
+bgpconfigurations                              crd.projectcalico.org/v1               false        BGPConfiguration
+bgppeers                                       crd.projectcalico.org/v1               false        BGPPeer
+blockaffinities                                crd.projectcalico.org/v1               false        BlockAffinity
+caliconodestatuses                             crd.projectcalico.org/v1               false        CalicoNodeStatus
+clusterinformations                            crd.projectcalico.org/v1               false        ClusterInformation
+felixconfigurations                            crd.projectcalico.org/v1               false        FelixConfiguration
+globalnetworkpolicies                          crd.projectcalico.org/v1               false        GlobalNetworkPolicy
+globalnetworksets                              crd.projectcalico.org/v1               false        GlobalNetworkSet
+hostendpoints                                  crd.projectcalico.org/v1               false        HostEndpoint
+ipamblocks                                     crd.projectcalico.org/v1               false        IPAMBlock
+ipamconfigs                                    crd.projectcalico.org/v1               false        IPAMConfig
+ipamhandles                                    crd.projectcalico.org/v1               false        IPAMHandle
+ippools                                        crd.projectcalico.org/v1               false        IPPool
+ipreservations                                 crd.projectcalico.org/v1               false        IPReservation
+kubecontrollersconfigurations                  crd.projectcalico.org/v1               false        KubeControllersConfiguration
+networkpolicies                                crd.projectcalico.org/v1               true         NetworkPolicy
+networksets                                    crd.projectcalico.org/v1               true         NetworkSet
+endpointslices                                 discovery.k8s.io/v1                    true         EndpointSlice
+events                            ev           events.k8s.io/v1                       true         Event
+flowschemas                                    flowcontrol.apiserver.k8s.io/v1beta2   false        FlowSchema
+prioritylevelconfigurations                    flowcontrol.apiserver.k8s.io/v1beta2   false        PriorityLevelConfiguration
+ingressclasses                                 networking.k8s.io/v1                   false        IngressClass
+ingresses                         ing          networking.k8s.io/v1                   true         Ingress
+networkpolicies                   netpol       networking.k8s.io/v1                   true         NetworkPolicy
+runtimeclasses                                 node.k8s.io/v1                         false        RuntimeClass
+poddisruptionbudgets              pdb          policy/v1                              true         PodDisruptionBudget
+podsecuritypolicies               psp          policy/v1beta1                         false        PodSecurityPolicy
+clusterrolebindings                            rbac.authorization.k8s.io/v1           false        ClusterRoleBinding
+clusterroles                                   rbac.authorization.k8s.io/v1           false        ClusterRole
+rolebindings                                   rbac.authorization.k8s.io/v1           true         RoleBinding
+roles                                          rbac.authorization.k8s.io/v1           true         Role
+priorityclasses                   pc           scheduling.k8s.io/v1                   false        PriorityClass
+csidrivers                                     storage.k8s.io/v1                      false        CSIDriver
+csinodes                                       storage.k8s.io/v1                      false        CSINode
+csistoragecapacities                           storage.k8s.io/v1beta1                 true         CSIStorageCapacity
+storageclasses                    sc           storage.k8s.io/v1                      false        StorageClass
+volumeattachments                              storage.k8s.io/v1                      false        VolumeAttachment
+```
+
+
+
+查看 version 定义
+
+```bash
+kubectl explain pods
+```
+
+
+
+```bash
+root@node1:~/k8slab# kubectl explain pods
+KIND:     Pod
+VERSION:  v1
+
+DESCRIPTION:
+     Pod is a collection of containers that can run on a host. This resource is
+     created by clients and scheduled onto hosts.
+
+FIELDS:
+   apiVersion   <string>
+     APIVersion defines the versioned schema of this representation of an
+     object. Servers should convert recognized schemas to the latest internal
+     value, and may reject unrecognized values. More info:
+     https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+
+   kind <string>
+     Kind is a string value representing the REST resource this object
+     represents. Servers may infer this from the endpoint the client submits
+     requests to. Cannot be updated. In CamelCase. More info:
+     https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+
+   metadata     <Object>
+     Standard object's metadata. More info:
+     https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+
+   spec <Object>
+     Specification of the desired behavior of the pod. More info:
+     https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
+
+   status       <Object>
+     Most recently observed status of the pod. This data may not be up to date.
+     Populated by the system. Read-only. More info:
+     https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
+```
+
+
+
+创建yaml文件，使用最简配置
+
+```bash
+nano nginx.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+```
+
+
+
+创建pod
+
+```bash
+kubectl apply -f nginx.yaml
+```
+
+
+
+查看pod
+
+```bash
+kubectl get pod -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl get pod -o wide
+NAME    READY   STATUS    RESTARTS   AGE   IP             NODE    NOMINATED NODE   READINESS GATES
+nginx   1/1     Running   0          92s   10.244.135.3   node3   <none>           <none>
+```
+
+
+
+使用pod ip地址访问pod
+
+```bash
+curl 10.244.135.3 
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# curl 10.244.135.3
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+```
+
+
+
+查看 pod 详细信息,分段查看重点字段内容
+
+```bash
+kubectl describe pod nginx
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl describe pod nginx
+Name:         nginx
+Namespace:    default
+Priority:     0
+Node:         node3/192.168.1.233
+Start Time:   Wed, 21 Dec 2022 09:31:18 +0800
+Labels:       <none>
+Annotations:  cni.projectcalico.org/containerID: 7f025169ec66a6ef670d4fd85f624e8e075ea8b69617241e42451f901afa6f5f
+              cni.projectcalico.org/podIP: 10.244.135.3/32
+              cni.projectcalico.org/podIPs: 10.244.135.3/32
+Status:       Running
+IP:           10.244.135.3
+IPs:
+  IP:  10.244.135.3
+Containers:
+  nginx:
+    Container ID:   docker://c59e02a1d5109f634fe979319deb390d752d167714bed390929bdec8db302462
+    Image:          nginx
+    Image ID:       docker-pullable://nginx@sha256:0d17b565c37bcbd895e9d92315a05c1c3c9a29f762b011a10c54a66cd53c9b31
+    Port:           <none>
+    Host Port:      <none>
+    State:          Running
+      Started:      Wed, 21 Dec 2022 09:31:34 +0800
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-wbl6x (ro)
+Conditions:
+  Type              Status
+  Initialized       True
+  Ready             True
+  ContainersReady   True
+  PodScheduled      True
+Volumes:
+  kube-api-access-wbl6x:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age    From               Message
+  ----    ------     ----   ----               -------
+  Normal  Scheduled  3m41s  default-scheduler  Successfully assigned default/nginx to node3
+  Normal  Pulling    3m41s  kubelet            Pulling image "nginx"
+  Normal  Pulled     3m26s  kubelet            Successfully pulled image "nginx" in 15.296929104s
+  Normal  Created    3m26s  kubelet            Created container nginx
+  Normal  Started    3m26s  kubelet            Started container nginx
+```
+
+
+
+
+
+查看pod yaml文件
+
+```bash
+kubectl get pods -o yaml
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl get pods -o yaml
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      cni.projectcalico.org/containerID: 7f025169ec66a6ef670d4fd85f624e8e075ea8b69617241e42451f901afa6f5f
+      cni.projectcalico.org/podIP: 10.244.135.3/32
+      cni.projectcalico.org/podIPs: 10.244.135.3/32
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{},"name":"nginx","namespace":"default"},"spec":{"containers":[{"image":"nginx","name":"nginx"}]}}
+    creationTimestamp: "2022-12-21T01:31:18Z"
+    name: nginx
+    namespace: default
+    resourceVersion: "3940"
+    uid: eba4b72c-0fc8-41ec-a86b-c5b183668801
+  spec:
+    containers:
+    - image: nginx
+      imagePullPolicy: Always
+      name: nginx
+      resources: {}
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-wbl6x
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: node3
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: kube-api-access-wbl6x
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2022-12-21T01:31:18Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2022-12-21T01:31:34Z"
+      status: "True"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2022-12-21T01:31:34Z"
+      status: "True"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2022-12-21T01:31:18Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - containerID: docker://c59e02a1d5109f634fe979319deb390d752d167714bed390929bdec8db302462
+      image: nginx:latest
+      imageID: docker-pullable://nginx@sha256:0d17b565c37bcbd895e9d92315a05c1c3c9a29f762b011a10c54a66cd53c9b31
+      lastState: {}
+      name: nginx
+      ready: true
+      restartCount: 0
+      started: true
+      state:
+        running:
+          startedAt: "2022-12-21T01:31:34Z"
+    hostIP: 192.168.1.233
+    phase: Running
+    podIP: 10.244.135.3
+    podIPs:
+    - ip: 10.244.135.3
+    qosClass: BestEffort
+    startTime: "2022-12-21T01:31:18Z"
+kind: List
+metadata:
+  resourceVersion: ""
+  selfLink: ""
+```
+
+
+
+进入pod中的容器（亦可使用/bin/sh）
+
+```bash
+kubectl exec -it nginx -- /bin/bash
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl exec -it nginx -- /bin/bash
+root@nginx:/#
+```
+
+
+
+在容器上下文里查看DNS地址
+
+```bash
+cat /etc/resolv.conf 
+```
+
+
+
+```bash
+root@nginx:/# cat /etc/resolv.conf
+nameserver 10.96.0.10
+search default.svc.cluster.local svc.cluster.local cluster.local
+options ndots:5
+```
+
+
+
+退出容器上下文
+
+```bash
+exit
+```
+
+
+
+```bash
+root@nginx:/# exit
+exit
+root@node1:~/k8slab/pod#
+```
+
+
+
+查看pod日志
+
+```bash
+kubectl logs nginx
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl logs nginx
+/docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+/docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf
+10-listen-on-ipv6-by-default.sh: info: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
+/docker-entrypoint.sh: Configuration complete; ready for start up
+2022/12/21 01:31:34 [notice] 1#1: using the "epoll" event method
+2022/12/21 01:31:34 [notice] 1#1: nginx/1.21.5
+2022/12/21 01:31:34 [notice] 1#1: built by gcc 10.2.1 20210110 (Debian 10.2.1-6)
+2022/12/21 01:31:34 [notice] 1#1: OS: Linux 5.4.0-107-generic
+2022/12/21 01:31:34 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
+2022/12/21 01:31:34 [notice] 1#1: start worker processes
+2022/12/21 01:31:34 [notice] 1#1: start worker process 32
+2022/12/21 01:31:34 [notice] 1#1: start worker process 33
+2022/12/21 01:31:34 [notice] 1#1: start worker process 34
+2022/12/21 01:31:34 [notice] 1#1: start worker process 35
+10.244.166.128 - - [21/Dec/2022:01:34:09 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/7.68.0" "-"
+```
+
+
+
+加参数查看滚动日志,因为没有活动部分,所以暂时看不到日志滚动
+
+```bash
+kubectl  logs -f  nginx
+```
+
+
+
+
+
+## Lab 2 创建多容器pod
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano many-pods.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: many-pods
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+  - name: redis # 多容器
+    image: redis
+  - name: memcached # 多容器
+    image: memcached
+```
+
+
+
+创建pod
+
+```bash
+kubectl apply -f many-pods.yaml
+```
+
+
+
+查看pod
+
+```bash
+kubectl get pods
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl get pods
+NAME        READY   STATUS    RESTARTS   AGE
+many-pods   3/3     Running   0          77s
+nginx       1/1     Running   0          19m
+```
+
+
+
+查看pod详细信息
+
+```bash
+kubectl describe pod many-pods
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl describe pod many-pods
+Name:         many-pods
+Namespace:    default
+Priority:     0
+Node:         node2/192.168.1.232
+Start Time:   Wed, 21 Dec 2022 09:49:38 +0800
+Labels:       <none>
+Annotations:  cni.projectcalico.org/containerID: cb6fcbd0725be62e5aca863637a2a369a111e74e651e95f68ad2aa26edfca8d9
+              cni.projectcalico.org/podIP: 10.244.104.3/32
+              cni.projectcalico.org/podIPs: 10.244.104.3/32
+Status:       Running
+IP:           10.244.104.3
+IPs:
+  IP:  10.244.104.3
+Containers:
+  nginx:
+    Container ID:   docker://a8f1b238fa227303c0776cf075e353cf119c9d95f50f1df514747bc32d318857
+    Image:          nginx
+    Image ID:       docker-pullable://nginx@sha256:0d17b565c37bcbd895e9d92315a05c1c3c9a29f762b011a10c54a66cd53c9b31
+    Port:           <none>
+    Host Port:      <none>
+    State:          Running
+      Started:      Wed, 21 Dec 2022 09:49:47 +0800
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-t7jvl (ro)
+  redis:
+    Container ID:   docker://1c0e8225f660bfb476e0de742d1e26571288252f34907cf7a4782f487e5d0d5c
+    Image:          redis
+    Image ID:       docker-pullable://redis@sha256:db485f2e245b5b3329fdc7eff4eb00f913e09d8feb9ca720788059fdc2ed8339
+    Port:           <none>
+    Host Port:      <none>
+    State:          Running
+      Started:      Wed, 21 Dec 2022 09:50:05 +0800
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-t7jvl (ro)
+  memcached:
+    Container ID:   docker://59551cfbc50dbcc09a67bbd61ed6faf04b5654bec3dee36ad923d355ad3e41fa
+    Image:          memcached
+    Image ID:       docker-pullable://memcached@sha256:a7895a53299404c294de9d8b0627c2585e924c389783f77c30df0cf6a316750c
+    Port:           <none>
+    Host Port:      <none>
+    State:          Running
+      Started:      Wed, 21 Dec 2022 09:50:07 +0800
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-t7jvl (ro)
+Conditions:
+  Type              Status
+  Initialized       True
+  Ready             True
+  ContainersReady   True
+  PodScheduled      True
+Volumes:
+  kube-api-access-t7jvl:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age    From               Message
+  ----    ------     ----   ----               -------
+  Normal  Scheduled  4m18s  default-scheduler  Successfully assigned default/many-pods to node2
+  Normal  Pulling    4m17s  kubelet            Pulling image "nginx"
+  Normal  Pulled     4m9s   kubelet            Successfully pulled image "nginx" in 7.743984739s
+  Normal  Created    4m9s   kubelet            Created container nginx
+  Normal  Started    4m9s   kubelet            Started container nginx
+  Normal  Pulling    4m9s   kubelet            Pulling image "redis"
+  Normal  Pulled     3m51s  kubelet            Successfully pulled image "redis" in 17.374983329s
+  Normal  Created    3m51s  kubelet            Created container redis
+  Normal  Started    3m51s  kubelet            Started container redis
+  Normal  Pulling    3m51s  kubelet            Pulling image "memcached"
+  Normal  Pulled     3m49s  kubelet            Successfully pulled image "memcached" in 1.700556634s
+  Normal  Created    3m49s  kubelet            Created container memcached
+  Normal  Started    3m49s  kubelet            Started container memcached
+```
+
+
+
+进入pod中的容器
+
+```bash
+kubectl exec -it many-pods -- /bin/bash
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl exec -it many-pods -- /bin/bash
+Defaulted container "nginx" out of: nginx, redis, memcached
+root@many-pods:/#
+```
+
+因为没有指定容器名字，因此进入的是第一个容器
+
+
+
+退出nginx容器上下文
+
+```text
+exit
+```
+
+
+
+加-c参数进入redis容器
+
+```bash
+kubectl exec -it many-pods -c redis -- /bin/bash
+```
+
+
+
+在redis容器上下文执行redis-cli
+
+```bash
+redis-cli
+```
+
+
+
+退出redis容器上下文，需执行两次
+
+```bash
+exit
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl exec -it many-pods -c redis -- /bin/bash
+root@many-pods:/data# redis-cli
+127.0.0.1:6379> exit
+root@many-pods:/data# exit
+exit
+```
+
+
+
+加-c参数进入memcached容器
+
+```bash
+kubectl exec -it many-pods -c memcached -- /bin/bash
+```
+
+
+
+在memcached容器上下文执行命令
+
+```bash
+memcached --help
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl exec -it many-pods -c memcached -- /bin/bash
+memcache@many-pods:/$ memcached --help
+memcached 1.6.12
+-p, --port=<num>          TCP port to listen on (default: 11211)
+-U, --udp-port=<num>      UDP port to listen on (default: 0, off)
+-s, --unix-socket=<file>  UNIX socket to listen on (disables network support)
+-a, --unix-mask=<mask>    access mask for UNIX socket, in octal (default: 700)
+-A, --enable-shutdown     enable ascii "shutdown" command
+-l, --listen=<addr>       interface to listen on (default: INADDR_ANY)
+                          if TLS/SSL is enabled, 'notls' prefix can be used to
+                          disable for specific listeners (-l notls:<ip>:<port>)
+-d, --daemon              run as a daemon
+-r, --enable-coredumps    maximize core file limit
+-u, --user=<user>         assume identity of <username> (only when run as root)
+-m, --memory-limit=<num>  item memory in megabytes (default: 64)
+-M, --disable-evictions   return error on memory exhausted instead of evicting
+-c, --conn-limit=<num>    max simultaneous connections (default: 1024)
+-k, --lock-memory         lock down all paged memory
+-v, --verbose             verbose (print errors/warnings while in event loop)
+-vv                       very verbose (also print client commands/responses)
+-vvv                      extremely verbose (internal state transitions)
+-h, --help                print this help and exit
+-i, --license             print memcached and libevent license
+-V, --version             print version and exit
+-P, --pidfile=<file>      save PID in <file>, only used with -d option
+-f, --slab-growth-factor=<num> chunk size growth factor (default: 1.25)
+-n, --slab-min-size=<bytes> min space used for key+value+flags (default: 48)
+-L, --enable-largepages  try to use large memory pages (if available)
+-D <char>     Use <char> as the delimiter between key prefixes and IDs.
+              This is used for per-prefix stats reporting. The default is
+              ":" (colon). If this option is specified, stats collection
+              is turned on automatically; if not, then it may be turned on
+              by sending the "stats detail on" command to the server.
+-t, --threads=<num>       number of threads to use (default: 4)
+-R, --max-reqs-per-event  maximum number of requests per event, limits the
+                          requests processed per connection to prevent
+                          starvation (default: 20)
+-C, --disable-cas         disable use of CAS
+-b, --listen-backlog=<num> set the backlog queue limit (default: 1024)
+-B, --protocol=<name>     protocol - one of ascii, binary, or auto (default: auto-negotiate)
+-I, --max-item-size=<num> adjusts max item size
+                          (default: 1m, min: 1k, max: 1024m)
+-S, --enable-sasl         turn on Sasl authentication
+-F, --disable-flush-all   disable flush_all command
+-X, --disable-dumping     disable stats cachedump and lru_crawler metadump
+-W  --disable-watch       disable watch commands (live logging)
+-Y, --auth-file=<file>    (EXPERIMENTAL) enable ASCII protocol authentication. format:
+                          user:pass\nuser2:pass2\n
+-e, --memory-file=<file>  (EXPERIMENTAL) mmap a file for item memory.
+                          use only in ram disks or persistent memory mounts!
+                          enables restartable cache (stop with SIGUSR1)
+-Z, --enable-ssl          enable TLS/SSL
+-o, --extended            comma separated list of extended options
+                          most options have a 'no_' prefix to disable
+   - maxconns_fast:       immediately close new connections after limit (default: enabled)
+   - hashpower:           an integer multiplier for how large the hash
+                          table should be. normally grows at runtime. (default starts at: 0)
+                          set based on "STAT hash_power_level"
+   - tail_repair_time:    time in seconds for how long to wait before
+                          forcefully killing LRU tail item.
+                          disabled by default; very dangerous option.
+   - hash_algorithm:      the hash table algorithm
+                          default is murmur3 hash. options: jenkins, murmur3, xxh3
+   - no_lru_crawler:      disable LRU Crawler background thread.
+   - lru_crawler_sleep:   microseconds to sleep between items
+                          default is 100.
+   - lru_crawler_tocrawl: max items to crawl per slab per run
+                          default is 0 (unlimited)
+   - read_buf_mem_limit:  limit in megabytes for connection read/response buffers.
+                          do not adjust unless you have high (20k+) conn. limits.
+                          0 means unlimited (default: 0)
+   - no_lru_maintainer:   disable new LRU system + background thread.
+   - hot_lru_pct:         pct of slab memory to reserve for hot lru.
+                          (requires lru_maintainer, default pct: 20)
+   - warm_lru_pct:        pct of slab memory to reserve for warm lru.
+                          (requires lru_maintainer, default pct: 40)
+   - hot_max_factor:      items idle > cold lru age * drop from hot lru. (default: 0.20)
+   - warm_max_factor:     items idle > cold lru age * this drop from warm. (default: 2.00)
+   - temporary_ttl:       TTL's below get separate LRU, can't be evicted.
+                          (requires lru_maintainer, default: 61)
+   - idle_timeout:        timeout for idle connections. (default: 0, no timeout)
+   - slab_chunk_max:      (EXPERIMENTAL) maximum slab size in kilobytes. use extreme care. (default: 512)
+   - watcher_logbuf_size: size in kilobytes of per-watcher write buffer. (default: 256)
+   - worker_logbuf_size:  size in kilobytes of per-worker-thread buffer
+                          read by background thread, then written to watchers. (default: 64)
+   - track_sizes:         enable dynamic reports for 'stats sizes' command.
+   - no_hashexpand:       disables hash table expansion (dangerous)
+   - modern:              enables options which will be default in future.
+                          currently: nothing
+   - no_modern:           uses defaults of previous major version (1.4.x)
+
+   - External storage (ext_*) related options (see: https://memcached.org/extstore)
+   - ext_path:            file to write to for external storage.
+                          ie: ext_path=/mnt/d1/extstore:1G
+   - ext_page_size:       size in megabytes of storage pages. (default: 64)
+   - ext_wbuf_size:       size in megabytes of page write buffers. (default: 4)
+   - ext_threads:         number of IO threads to run. (default: 1)
+   - ext_item_size:       store items larger than this (bytes, default 512)
+   - ext_item_age:        store items idle at least this long (seconds, default: no age limit)
+   - ext_low_ttl:         consider TTLs lower than this specially (default: 0)
+   - ext_drop_unread:     don't re-write unread values during compaction (default: disabled)
+   - ext_recache_rate:    recache an item every N accesses (default: 2000)
+   - ext_compact_under:   compact when fewer than this many free pages
+                          (default: 1/4th of the assigned storage)
+   - ext_drop_under:      drop COLD items when fewer than this many free pages
+                          (default: 1/4th of the assigned storage)
+   - ext_max_frag:        max page fragmentation to tolerate (default: 0.80)
+   - slab_automove_freeratio: ratio of memory to hold free as buffer.
+                          (see doc/storage.txt for more info, default: 0.010)
+   - ssl_chain_cert:      certificate chain file in PEM format
+   - ssl_key:             private key, if not part of the -ssl_chain_cert
+   - ssl_keyformat:       private key format (PEM, DER or ENGINE) (default: PEM)
+   - ssl_verify_mode:     peer certificate verification mode, default is 0(None).
+                          valid values are 0(None), 1(Request), 2(Require)
+                          or 3(Once)
+   - ssl_ciphers:         specify cipher list to be used
+   - ssl_ca_cert:         PEM format file of acceptable client CA's
+   - ssl_wbuf_size:       size in kilobytes of per-connection SSL output buffer
+                          (default: 16)
+   - ssl_session_cache:   enable server-side SSL session cache, to support session
+                          resumption
+   - ssl_min_version:     minimum protocol version to accept (default: tlsv1.2)
+                          valid values are 0(tlsv1.0), 1(tlsv1.1), 2(tlsv1.2), or 3(tlsv1.3).
+-N, --napi_ids            number of napi ids. see doc/napi_ids.txt for more details
+```
+
+
+
+退出memcache容器上下文
+
+```text
+exit
+```
+
+
+
+```bash
+memcache@many-pods:/$ exit
+exit
+```
+
+清理pod
+
+```bash
+kubectl delete -f many-pods.yaml 
+```
+
+
+
+
+
+## Lab 3 定义pod的DNS
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano nginx-dns.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-dns
+spec:
+  dnsPolicy: Default # 和宿主机的DNS配置相同
+  containers:
+  - name: nginx
+    image: nginx
+```
+
+
+
+创建pod
+
+```bash
+kubectl apply -f nginx-dns.yaml 
+```
+
+
+
+进入pod中的容器
+
+```text
+kubectl exec -it nginx-dns /bin/bash
+```
+
+
+
+查看容器内的DNS设置
+
+```text
+cat /etc/resolv.conf   
+```
+
+
+
+退出容器上下文
+
+```text
+exit
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl exec -it nginx-dns /bin/bash
+kubectl exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kubectl exec [POD] -- [COMMAND] instead.
+root@nginx-dns:/# cat /etc/resolv.conf
+nameserver 192.168.1.249
+root@nginx-dns:/# exit
+exit
+```
+
+
+
+查看nginx pod的dns设置
+
+```bash
+kubectl exec -it nginx /bin/bash
+```
+
+
+
+```bash
+cat /etc/resolv.conf  
+```
+
+
+
+```bash
+exit
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl exec -it nginx /bin/bash
+kubectl exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kubectl exec [POD] -- [COMMAND] instead.
+root@nginx:/# cat /etc/resolv.conf
+nameserver 10.96.0.10
+search default.svc.cluster.local svc.cluster.local cluster.local
+options ndots:5
+root@nginx:/# exit
+exit
+```
+
+
+
+查看host本机DNS，和上述容器的DNS设置进行对比
+
+```bash
+cat /etc/resolv.conf   
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# cat /etc/resolv.conf
+# Dynamic resolv.conf(5) file for glibc resolver(3) generated by resolvconf(8)
+#     DO NOT EDIT THIS FILE BY HAND -- YOUR CHANGES WILL BE OVERWRITTEN
+# 127.0.0.53 is the systemd-resolved stub resolver.
+# run "systemd-resolve --status" to see details about the actual nameservers.
+
+nameserver 127.0.0.53
+options timeout:1 single-request-reopen
+```
+
+
+
+清理pod
+
+```bash
+kubectl delete -f nginx-dns.yaml 
+```
+
+
+
+## Lab 4 定义pod的监听端口
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano nginx-ports.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-ports
+spec:
+  dnsPolicy: Default
+  containers:
+  - name: nginx
+    image: nginx
+    ports:
+    - name: web-port
+      containerPort: 80 # 容器暴露的端口
+      protocol: TCP
+      hostPort: 80 # 主机监听端口
+```
+
+
+
+创建pod
+
+```bash
+kubectl apply -f nginx-ports.yaml 
+```
+
+
+
+查看pod
+
+```text
+kubectl get pods -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl get pods -o wide
+NAME          READY   STATUS    RESTARTS   AGE   IP             NODE    NOMINATED NODE   READINESS GATES
+nginx         1/1     Running   0          38m   10.244.135.3   node3   <none>           <none>
+nginx-ports   1/1     Running   0          8s    10.244.104.5   node2   <none>           <none>
+```
+
+
+
+观察该pod运行在那个node上，使用nodeip进行访问,此例中是node2
+
+```bash
+curl http://nodeip
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# curl node2
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+```
+
+
+
+清理pod
+
+```bash
+kubectl delete -f nginx-ports.yaml 
+```
+
+监听端口会和后续实验冲突，建议清理
+
+
+
+
+
+## Lab 5 定义映像拉取策略
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano nginx-imagePullPolicy.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-imagepullpolicy
+spec:
+  dnsPolicy: Default
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: Always # 拉取策略
+    ports:
+    - name: web-port
+      containerPort: 80
+      protocol: TCP
+      hostPort: 80 
+```
+
+
+
+创建pod
+
+```bash
+kubectl apply -f nginx-imagePullPolicy.yaml 
+```
+
+
+
+查看pod
+
+```bash
+kubectl get pods -o wide
+```
+
+
+
+清理pod
+
+```bash
+kubectl delete -f nginx-imagePullPolicy.yaml 
+```
+
+
+
+
+
+## Lab 6 注入环境变量
+
+
+
+查看本机环境变量
+
+```bash
+env
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# env
+SHELL=/bin/bash
+HISTSIZE=1000
+LANGUAGE=en_US:
+HISTTIMEFORMAT=%F %T root
+PWD=/root/k8slab/pod
+LOGNAME=root
+XDG_SESSION_TYPE=tty
+MOTD_SHOWN=pam
+HOME=/root
+LANG=en_US.UTF-8
+LS_COLORS=rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:
+SSH_CONNECTION=192.168.1.72 61498 192.168.1.231 22
+LESSCLOSE=/usr/bin/lesspipe %s %s
+XDG_SESSION_CLASS=user
+TERM=xterm
+LESSOPEN=| /usr/bin/lesspipe %s
+USER=root
+DISPLAY=localhost:10.0
+SHLVL=1
+XDG_SESSION_ID=4
+XDG_RUNTIME_DIR=/run/user/0
+SSH_CLIENT=192.168.1.72 61498 22
+XDG_DATA_DIRS=/usr/local/share:/usr/share:/var/lib/snapd/desktop
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus
+SSH_TTY=/dev/pts/0
+_=/usr/bin/env
+OLDPWD=/root/k8slab
+```
+
+
+
+进入nginx pod中的容器
+
+```bash
+kubectl exec -it nginx -- /bin/bash
+```
+
+
+
+查看容器的环境变量
+
+```text
+env
+```
+
+*查看变量的格式
+
+
+
+退出容器上下文
+
+```text
+exit
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl exec -it nginx -- /bin/bash
+root@nginx:/# env
+KUBERNETES_SERVICE_PORT_HTTPS=443
+KUBERNETES_SERVICE_PORT=443
+HOSTNAME=nginx
+PWD=/
+PKG_RELEASE=1~bullseye
+HOME=/root
+KUBERNETES_PORT_443_TCP=tcp://10.96.0.1:443
+NJS_VERSION=0.7.1
+TERM=xterm
+SHLVL=1
+KUBERNETES_PORT_443_TCP_PROTO=tcp
+KUBERNETES_PORT_443_TCP_ADDR=10.96.0.1
+KUBERNETES_SERVICE_HOST=10.96.0.1
+KUBERNETES_PORT=tcp://10.96.0.1:443
+KUBERNETES_PORT_443_TCP_PORT=443
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+NGINX_VERSION=1.21.5
+_=/usr/bin/env
+root@nginx:/# exit
+exit
+```
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano nginx-env.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-env
+spec:
+  dnsPolicy: Default
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: Always
+    env: # 环境变量
+    - name: mysqlhost
+      value: "10.96.0.110"
+    - name: mysqlport
+      value: "3306"
+    - name: mysqldb
+      value: "wordpress"
+    ports:
+    - name: web-port
+      containerPort: 80
+      protocol: TCP
+```
+
+
+
+创建pod
+
+```bash
+kubectl apply -f nginx-env.yaml 
+```
+
+
+
+进入pod中的容器
+
+```bash
+kubectl exec -it nginx-env -- /bin/bash
+```
+
+
+
+查看容器的环境变量
+
+```bash
+env
+```
+
+*验证环境变量
+
+
+
+退出容器上下文
+
+```text
+exit
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl exec -it nginx-env -- /bin/bash
+root@nginx-env:/# env
+KUBERNETES_SERVICE_PORT_HTTPS=443
+KUBERNETES_SERVICE_PORT=443
+HOSTNAME=nginx-env
+PWD=/
+PKG_RELEASE=1~bullseye
+HOME=/root
+KUBERNETES_PORT_443_TCP=tcp://10.96.0.1:443
+mysqlhost=10.96.0.110
+NJS_VERSION=0.7.1
+mysqlport=3306
+TERM=xterm
+SHLVL=1
+KUBERNETES_PORT_443_TCP_PROTO=tcp
+KUBERNETES_PORT_443_TCP_ADDR=10.96.0.1
+mysqldb=wordpress
+KUBERNETES_SERVICE_HOST=10.96.0.1
+KUBERNETES_PORT=tcp://10.96.0.1:443
+KUBERNETES_PORT_443_TCP_PORT=443
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+NGINX_VERSION=1.21.5
+_=/usr/bin/env
+root@nginx-env:/# exit
+exit
+```
+
+
+
+清理pod
+
+```bash
+kubectl delete -f nginx-env.yaml 
+```
+
+
+
+
+
+## Lab 7 定义pod执行的任务
+
+查看nginx的Dockefile，着重查看最后一行
+
+```bash
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+
+
+进入 nginx pod中的容器
+
+```bash
+kubectl exec -it nginx -- /bin/bash
+```
+
+
+
+安装procps
+
+```bash
+apt update
+apt install -y procps
+```
+
+
+
+查看nginx的启动参数
+
+```text
+ps -ef 
+```
+
+
+
+```bash
+root@nginx:/# ps -ef
+UID          PID    PPID  C STIME TTY          TIME CMD
+root           1       0  0 01:31 ?        00:00:00 nginx: master process nginx -g daemon off;
+nginx         32       1  0 01:31 ?        00:00:00 nginx: worker process
+nginx         33       1  0 01:31 ?        00:00:00 nginx: worker process
+nginx         34       1  0 01:31 ?        00:00:00 nginx: worker process
+nginx         35       1  0 01:31 ?        00:00:00 nginx: worker process
+root          60       0  0 02:43 pts/0    00:00:00 /bin/bash
+root         404      60  0 02:44 pts/0    00:00:00 ps -ef
+```
+
+
+
+退出容器上下文
+
+```text
+exit
+```
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano nginx-args.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-args
+  namespace: default
+  labels:
+    app: nginx-args
+spec:
+  dnsPolicy: Default
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: Always
+    command: #启动参数
+    - sleep 
+    args:
+    - "3600"
+    env:
+    - name: mysqlhost
+      value: "10.96.0.110"
+    - name: mysqlport
+      value: "3306"
+    - name: mysqldb
+      value: "wordpress"
+    ports:
+    - name: web-port
+      containerPort: 80
+      protocol: TCP
+```
+
+
+
+创建pod
+
+```bash
+kubectl apply -f nginx-args.yaml 
+```
+
+
+
+进入 nginx-env pod中的容器
+
+```bash
+kubectl exec -it nginx-args -- /bin/bash
+```
+
+
+
+安装procps，如果速度慢，可以根据备注中的提示换源
+
+```bash
+apt update
+apt install procps
+```
+
+
+
+查看nginx的启动参数
+
+```bash
+ps -ef 
+```
+
+
+
+```bash
+root@nginx-args:/# ps -ef
+UID          PID    PPID  C STIME TTY          TIME CMD
+root           1       0  0 02:50 ?        00:00:00 sleep 3600
+root           7       0  0 02:50 pts/0    00:00:00 /bin/bash
+root         351       7  0 02:52 pts/0    00:00:00 ps -ef
+```
+
+
+
+退出容器上下文
+
+```bash
+exit
+```
+
+
+
+清理pod
+
+```bash
+kubectl delete -f  nginx-args.yaml 
+```
+
+
+
+
+
+## Lab 8 增加标签和注解
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano nginx-annotation.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-annotation
+  namespace: default
+  labels:
+    app: nginx-annotation # 标签
+  annotations:
+    app: nginx-annotation # 注解
+spec:
+  dnsPolicy: Default
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: Always
+    command:
+    - sleep 
+    args:
+    - "3600"
+    env:
+    - name: mysqlhost
+      value: "10.96.0.110"
+    - name: mysqlport
+      value: "3306"
+    - name: mysqldb
+      value: "wordpress"
+    ports:
+    - name: web-port
+      containerPort: 80
+      protocol: TCP
+```
+
+
+
+创建pod
+
+```bash
+kubectl apply -f nginx-annotation.yaml
+```
+
+
+
+查看pod，重点关注标签和注解
+
+```bash
+kubectl describe pod nginx-annotation
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl describe pod nginx-annotation
+Name:         nginx-annotation
+Namespace:    default
+Priority:     0
+Node:         node2/192.168.1.232
+Start Time:   Wed, 21 Dec 2022 10:57:08 +0800
+Labels:       app=nginx-annotation
+Annotations:  app: nginx-annotation
+              cni.projectcalico.org/containerID: e4988e9d61d50c402228beaa70df89d25aff372d9c2ffe6eae4cc5714919a73a
+              cni.projectcalico.org/podIP: 10.244.104.8/32
+              cni.projectcalico.org/podIPs: 10.244.104.8/32
+Status:       Pending
+IP:
+IPs:          <none>
+Containers:
+  nginx:
+    Container ID:
+    Image:         nginx
+    Image ID:
+    Port:          80/TCP
+    Host Port:     0/TCP
+    Command:
+      sleep
+    Args:
+      3600
+    State:          Waiting
+      Reason:       ContainerCreating
+    Ready:          False
+    Restart Count:  0
+    Environment:
+      mysqlhost:  10.96.0.110
+      mysqlport:  3306
+      mysqldb:    wordpress
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-qvh52 (ro)
+Conditions:
+  Type              Status
+  Initialized       True
+  Ready             False
+  ContainersReady   False
+  PodScheduled      True
+Volumes:
+  kube-api-access-qvh52:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  6s    default-scheduler  Successfully assigned default/nginx-annotation to node2
+  Normal  Pulling    6s    kubelet            Pulling image "nginx"
+```
+
+
+
+清理pod
+
+```bash
+kubectl delete -f nginx-annotation.yaml 
+```
+
+
+
+
+
+## Lab 9 使用主机网络
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano nginx-hostnetwork.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-hostnetwork
+  namespace: default
+  labels:
+    app: nginx-hostnetwork
+  annotations:
+    app: nginx-hostnetwork
+spec:
+  dnsPolicy: Default
+  hostNetwork: true # 使用主机网络
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: Always
+    command:
+    - sleep 
+    args:
+    - "3600"
+    env:
+    - name: mysqlhost
+      value: "10.96.0.110"
+    - name: mysqlport
+      value: "3306"
+    - name: mysqldb
+      value: "wordpress"
+    ports:
+    - name: web-port
+      containerPort: 80
+      protocol: TCP
+```
+
+
+
+创建pod
+
+```bash
+kubectl apply -f nginx-hostnetwork.yaml 
+```
+
+
+
+查看pod
+
+```text
+kubectl get pod -o wide
+```
+
+如果pod无法创建成功，请检查端口冲突
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl get pod -o wide
+NAME                READY   STATUS    RESTARTS   AGE   IP              NODE    NOMINATED NODE   READINESS GATES
+nginx               1/1     Running   0          94m   10.244.135.3    node3   <none>           <none>
+nginx-hostnetwork   1/1     Running   0          21s   192.168.1.232   node2   <none>           <none>
+```
+
+
+
+删除端口冲突的pod（可选）
+
+```bash
+# kubectl delete pod nginx-ports
+```
+
+
+
+查看kubernetes网络配置
+
+```text
+nano kubeadm-config.yaml 
+```
+
+*查看podSubnet字段
+
+
+
+清理pod
+
+```text
+kubectl delete -f nginx-hostnetwork.yaml
+```
+
+
+
+
+
+## Lab 10 定义pod volume：hostpath
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano nginx-volume-hostpath.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-volume-hostpath
+  namespace: default
+  labels:
+    app: nginx-volume-hostpath
+  annotations:
+    app: nginx-volume-hostpath
+spec:
+  dnsPolicy: Default
+  hostNetwork: false
+  restartPolicy: Always
+  volumes: # 定义卷
+  - name: web-root
+    hostPath:
+      path: /data
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: Always
+    volumeMounts: # 挂接卷
+    - name: web-root
+      mountPath: /data
+    command:
+    - sleep 
+    args:
+    - "3600"
+    env:
+    - name: mysqlhost
+      value: "10.96.0.110"
+    - name: mysqlport
+      value: "3306"
+    - name: mysqldb
+      value: "wordpress"
+    ports:
+    - name: web-port
+      containerPort: 80
+      protocol: TCP
+```
+
+
+
+创建pod
+
+```bash
+kubectl apply -f nginx-volume-hostpath.yaml
+```
+
+
+
+进入pod中的容器
+
+```text
+kubectl exec -it nginx-volume-hostpath -- /bin/bash
+```
+
+
+
+查看路径
+
+```bash
+df -hT
+```
+
+*重点关注 /data 目录
+
+
+
+尝试创建文件
+
+```bash
+cd /data/
+touch aaa
+touch bbb
+echo "abraham is here" > ccc
+ls 
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl exec -it nginx-volume-hostpath -- /bin/bash
+root@nginx-volume-hostpath:/# df -hT
+Filesystem     Type     Size  Used Avail Use% Mounted on
+overlay        overlay  125G  6.6G  113G   6% /
+tmpfs          tmpfs     64M     0   64M   0% /dev
+tmpfs          tmpfs    3.9G     0  3.9G   0% /sys/fs/cgroup
+/dev/sda1      ext4     125G  6.6G  113G   6% /data
+shm            tmpfs     64M     0   64M   0% /dev/shm
+tmpfs          tmpfs    7.7G   12K  7.7G   1% /run/secrets/kubernetes.io/serviceaccount
+tmpfs          tmpfs    3.9G     0  3.9G   0% /proc/acpi
+tmpfs          tmpfs    3.9G     0  3.9G   0% /proc/scsi
+tmpfs          tmpfs    3.9G     0  3.9G   0% /sys/firmware
+root@nginx-volume-hostpath:/# cd /data/
+touch aaa
+touch bbb
+echo "abraham is here" > ccc
+ls
+aaa  bbb  ccc
+root@nginx-volume-hostpath:/data#
+```
+
+
+
+退出容器上下文
+
+```bash
+exit
+```
+
+
+
+查看pod,关注pod所在的节点
+
+```bash
+kubectl get pod -o wide
+```
+
+
+
+此例中,该 pod 被调度到 node2 上
+
+```bash
+root@node1:~/k8slab/pod# kubectl get pod -o wide
+NAME                    READY   STATUS    RESTARTS   AGE    IP             NODE    NOMINATED NODE   READINESS GATES
+nginx                   1/1     Running   0          153m   10.244.135.3   node3   <none>           <none>
+nginx-volume-hostpath   1/1     Running   0          4m9s   10.244.104.9   node2   <none>           <none>
+```
+
+
+
+
+
+在上述节点上下文中执行以下操作查看文件
+
+```bash
+cd /data/
+ls
+cat ccc
+```
+
+
+
+```bash
+root@node2:~# cd /data/
+root@node2:/data# ls
+aaa  bbb  ccc
+root@node2:/data# cat ccc
+abraham is here
+root@node2:/data#
+```
+
+
+
+排空pod所在节点
+
+```bash
+kubectl drain node2 --ignore-daemonsets --force
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl drain node2 --ignore-daemonsets --force
+node/node2 cordoned
+WARNING: deleting Pods not managed by ReplicationController, ReplicaSet, Job, DaemonSet or StatefulSet: default/nginx-volume-hostpath; ignoring DaemonSet-managed Pods: kube-system/calico-node-57snh, kube-system/kube-proxy-qkfvc
+evicting pod default/nginx-volume-hostpath
+pod/nginx-volume-hostpath evicted
+node/node2 drained
+```
+
+
+
+查看node
+
+```bash
+kubectl get node
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl get node
+NAME    STATUS                     ROLES                  AGE    VERSION
+node1   Ready                      control-plane,master   242d   v1.23.0
+node2   Ready,SchedulingDisabled   <none>                 242d   v1.23.0
+node3   Ready                      <none>                 242d   v1.23.0
+```
+
+
+
+重新创建 pod
+
+```bash
+kubectl apply -f nginx-volume-hostpath.yaml 
+```
+
+
+
+查看 pod 
+
+```bash
+kubectl get pod -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl get pod -o wide
+NAME                    READY   STATUS    RESTARTS   AGE    IP             NODE    NOMINATED NODE   READINESS GATES
+nginx                   1/1     Running   0          161m   10.244.135.3   node3   <none>           <none>
+nginx-volume-hostpath   1/1     Running   0          20s    10.244.135.4   node3   <none>           <none>
+```
+
+注意这一次 pod 被调度到了 `node3` 上
+
+
+
+再次进入 pod 中的容器
+
+```bash
+kubectl exec -it nginx-volume-hostpath -- /bin/bash
+```
+
+
+
+查看路径
+
+```text
+df -hT
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl exec -it nginx-volume-hostpath -- /bin/bash
+root@nginx-volume-hostpath:/# df -hT
+Filesystem     Type     Size  Used Avail Use% Mounted on
+overlay        overlay  125G  6.6G  113G   6% /
+tmpfs          tmpfs     64M     0   64M   0% /dev
+tmpfs          tmpfs    3.9G     0  3.9G   0% /sys/fs/cgroup
+/dev/sda1      ext4     125G  6.6G  113G   6% /data
+shm            tmpfs     64M     0   64M   0% /dev/shm
+tmpfs          tmpfs    7.7G   12K  7.7G   1% /run/secrets/kubernetes.io/serviceaccount
+tmpfs          tmpfs    3.9G     0  3.9G   0% /proc/acpi
+tmpfs          tmpfs    3.9G     0  3.9G   0% /proc/scsi
+tmpfs          tmpfs    3.9G     0  3.9G   0% /sys/firmware
+```
+
+重点关注 /data 目录
+
+
+
+查看文件
+
+```bash
+cd /data/
+ls
+```
+
+
+
+```bash
+root@nginx-volume-hostpath:/# cd /data/
+ls
+root@nginx-volume-hostpath:/data#
+```
+
+荡然无存
+
+
+
+退出容器上下文
+
+```bash
+exit
+```
+
+
+
+清理 pod
+
+```bash
+kubectl delete -f nginx-volume-hostpath.yaml 
+```
+
+
+
+恢复此前被排空的节点
+
+```bash
+kubectl uncordon node2
+```
+
+
+
+确认节点状态
+
+```bash
+kubectl get node 
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl uncordon node2
+node/node2 uncordoned
+root@node1:~/k8slab/pod# kubectl get node
+NAME    STATUS   ROLES                  AGE    VERSION
+node1   Ready    control-plane,master   242d   v1.23.0
+node2   Ready    <none>                 242d   v1.23.0
+node3   Ready    <none>                 242d   v1.23.0
+```
+
+
+
+
+
+## Lab 11 定义 pod volume：emptyDir
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano nginx-volume-emptydir.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-volume-emptydir
+  namespace: default
+  labels:
+    app: nginx-volume-emptydir
+  annotations:
+    app: nginx-volume-emptydir
+spec:
+  dnsPolicy: Default
+  hostNetwork: false
+  restartPolicy: Always
+  volumes:
+  - name: web-root
+    hostPath:
+      path: /data
+  - name: web-path # 不用定义本地路径
+    emptyDir: 
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: Always
+    volumeMounts:
+    - name: web-root
+      mountPath: /data
+    - name: web-path # 挂接emptyDir
+      mountPath: /www
+    command:
+    - sleep 
+    args:
+    - "3600"
+    env:
+    - name: mysqlhost
+      value: "10.96.0.110"
+    - name: mysqlport
+      value: "3306"
+    - name: mysqldb
+      value: "wordpress"
+    ports:
+    - name: web-port
+      containerPort: 80
+      protocol: TCP
+```
+
+
+
+创建pod
+
+```bash
+kubectl apply -f nginx-volume-emptydir.yaml 
+```
+
+
+
+查看 pod, 确认 pod 所在的节点
+
+```bash
+kubectl get pod -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl get pod -o wide
+NAME                    READY   STATUS    RESTARTS   AGE    IP              NODE    NOMINATED NODE   READINESS GATES
+nginx                   1/1     Running   0          174m   10.244.135.3    node3   <none>           <none>
+nginx-volume-emptydir   1/1     Running   0          37s    10.244.104.10   node2   <none>           <none>
+```
+
+此例中, pod 被调度到 `node2` 
+
+ 
+
+
+
+进入pod中的容器
+
+```bash
+kubectl exec -it nginx-volume-emptydir -- /bin/bash
+```
+
+
+
+查看路径
+
+```text
+df -hT
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl exec -it nginx-volume-emptydir -- /bin/bash
+root@nginx-volume-emptydir:/# df -hT
+Filesystem     Type     Size  Used Avail Use% Mounted on
+overlay        overlay  125G  6.6G  113G   6% /
+tmpfs          tmpfs     64M     0   64M   0% /dev
+tmpfs          tmpfs    3.9G     0  3.9G   0% /sys/fs/cgroup
+/dev/sda1      ext4     125G  6.6G  113G   6% /data
+shm            tmpfs     64M     0   64M   0% /dev/shm
+tmpfs          tmpfs    7.7G   12K  7.7G   1% /run/secrets/kubernetes.io/serviceaccount
+tmpfs          tmpfs    3.9G     0  3.9G   0% /proc/acpi
+tmpfs          tmpfs    3.9G     0  3.9G   0% /proc/scsi
+tmpfs          tmpfs    3.9G     0  3.9G   0% /sys/firmware
+```
+
+看不到此前定义的www目录
+
+
+
+尝试盲操作进入www目录，并创建文件
+
+```bash
+cd /www/
+touch aaa
+ls
+```
+
+
+
+```bash
+root@nginx-volume-emptydir:/# cd /www/
+touch aaa
+ls
+aaa
+root@nginx-volume-emptydir:/www#
+```
+
+
+
+退出容器上下文
+
+```bash
+exit
+```
+
+
+
+删除并重新创建 pod
+
+```bash
+kubectl delete -f nginx-volume-emptydir.yaml
+kubectl apply -f nginx-volume-emptydir.yaml 
+```
+
+
+
+查看pod
+
+```bash
+kubectl get pod -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl get pod -o wide
+NAME                    READY   STATUS    RESTARTS   AGE    IP              NODE    NOMINATED NODE   READINESS GATES
+nginx                   1/1     Running   0          3h2m   10.244.135.3    node3   <none>           <none>
+nginx-volume-emptydir   1/1     Running   0          22s    10.244.104.11   node2   <none>           <none>
+```
+
+确认pod所在的节点没有变化
+
+
+
+再次进入pod中的容器
+
+```bash
+kubectl exec -it nginx-volume-emptydir -- /bin/bash
+```
+
+
+
+尝试进入WWW目录，并查看文件列表
+
+```bash
+cd /www/
+ls
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl exec -it nginx-volume-emptydir -- /bin/bash
+root@nginx-volume-emptydir:/# cd /www/
+ls
+root@nginx-volume-emptydir:/www#
+```
+
+都是空的所以这个故事告诉我们emptyDir就是一场空
+
+
+
+退出容器上下文
+
+```bash
+exit
+```
+
+
+
+清理 pod
+
+```bash
+kubectl delete -f nginx-volume-emptydir.yaml
+```
+
+
+
+
+
+## Lab 12 使用initcontainer执行初始化作业
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano nginx-initcontainer.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-initcontainer
+  namespace: default
+  labels:
+    app: nginx-initcontainer
+  annotations:
+    app: nginx-initcontainer
+spec:
+  dnsPolicy: Default
+  hostNetwork: false
+  restartPolicy: Always
+  volumes:
+  - name: web-root
+    hostPath:
+      path: /data
+  - name: web-path # 定义emptyDir
+    emptyDir: 
+  initContainers:  # 定义initContainers
+  - name: pullcode
+    image: busybox # initContainer使用的映像
+    volumeMounts:
+    - name: web-path # initContainers挂接emptyDir
+      mountPath: /data
+    command:
+    - /bin/sh
+    - -c
+    - "echo hello > /data/index.html"
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: Always
+    volumeMounts:
+    - name: web-root
+      mountPath: /data
+    - name: web-path # 主容器挂接emptyDir
+      mountPath: /usr/share/nginx/html
+    env:
+    - name: mysqlhost
+      value: "10.96.0.110"
+    - name: mysqlport
+      value: "3306"
+    - name: mysqldb
+      value: "wordpress"
+    ports:
+    - name: web-port
+      containerPort: 80
+      protocol: TCP
+```
+
+
+
+创建pod
+
+```bash
+kubectl apply -f nginx-initcontainer.yaml 
+```
+
+
+
+查看pod详细信息
+
+```bash
+kubectl describe pod nginx-initcontainer
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl describe pod nginx-initcontainer
+Name:         nginx-initcontainer
+Namespace:    default
+Priority:     0
+Node:         node2/192.168.1.232
+Start Time:   Wed, 21 Dec 2022 12:37:10 +0800
+Labels:       app=nginx-initcontainer
+Annotations:  app: nginx-initcontainer
+              cni.projectcalico.org/containerID: 84fca80df678823a6592b9ecbaaa739f4cfa6e2976ce4b33b39bea61e24bd764
+              cni.projectcalico.org/podIP: 10.244.104.12/32
+              cni.projectcalico.org/podIPs: 10.244.104.12/32
+Status:       Running
+IP:           10.244.104.12
+IPs:
+  IP:  10.244.104.12
+Init Containers:
+  pullcode:
+    Container ID:  docker://59ed5179755b437db3617d82e838622cb49887439eb5c55fb7cf3657a9b1bb4b
+    Image:         busybox
+    Image ID:      docker-pullable://busybox@sha256:5acba83a746c7608ed544dc1533b87c737a0b0fb730301639a0179f9344b1678
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      /bin/sh
+      -c
+      echo hello > /data/index.html
+    State:          Terminated
+      Reason:       Completed
+      Exit Code:    0
+      Started:      Wed, 21 Dec 2022 12:37:12 +0800
+      Finished:     Wed, 21 Dec 2022 12:37:12 +0800
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /data from web-path (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-px7rf (ro)
+Containers:
+  nginx:
+    Container ID:   docker://67212890cd2cdce6b5746ea99309272d0656c0a0301d1c8654853b9c60af9ec9
+    Image:          nginx
+    Image ID:       docker-pullable://nginx@sha256:0d17b565c37bcbd895e9d92315a05c1c3c9a29f762b011a10c54a66cd53c9b31
+    Port:           80/TCP
+    Host Port:      0/TCP
+    State:          Running
+      Started:      Wed, 21 Dec 2022 12:37:14 +0800
+    Ready:          True
+    Restart Count:  0
+    Environment:
+      mysqlhost:  10.96.0.110
+      mysqlport:  3306
+      mysqldb:    wordpress
+    Mounts:
+      /data from web-root (rw)
+      /usr/share/nginx/html from web-path (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-px7rf (ro)
+Conditions:
+  Type              Status
+  Initialized       True
+  Ready             True
+  ContainersReady   True
+  PodScheduled      True
+Volumes:
+  web-root:
+    Type:          HostPath (bare host directory volume)
+    Path:          /data
+    HostPathType:
+  web-path:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:
+    SizeLimit:  <unset>
+  kube-api-access-px7rf:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age    From               Message
+  ----    ------     ----   ----               -------
+  Normal  Scheduled  3m1s   default-scheduler  Successfully assigned default/nginx-initcontainer to node2
+  Normal  Pulling    3m     kubelet            Pulling image "busybox"
+  Normal  Pulled     2m59s  kubelet            Successfully pulled image "busybox" in 1.245820983s
+  Normal  Created    2m59s  kubelet            Created container pullcode
+  Normal  Started    2m58s  kubelet            Started container pullcode
+  Normal  Pulling    2m58s  kubelet            Pulling image "nginx"
+  Normal  Pulled     2m57s  kubelet            Successfully pulled image "nginx" in 244.484639ms
+  Normal  Created    2m57s  kubelet            Created container nginx
+  Normal  Started    2m57s  kubelet            Started container nginx
+```
+
+确定容器的启动和执行
+
+
+
+查看pod
+
+```text
+kubectl get pod -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl get pod -o wide
+NAME                  READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+nginx                 1/1     Running   0          3h9m    10.244.135.3    node3   <none>           <none>
+nginx-initcontainer   1/1     Running   0          3m54s   10.244.104.12   node2   <none>           <none>
+```
+
+确定容器的 ip 地址
+
+
+
+访问pod
+
+```bash
+curl http://10.244.104.12 
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# curl http://10.244.104.12
+hello
+```
+
+
+
+进入pod中的容器
+
+```bash
+kubectl exec -it nginx-initcontainer -- /bin/bash
+```
+
+
+
+在pod上下文中检查初始化过程注入的文件
+
+```text
+cd /usr/share/nginx/html/
+ls
+cat index.html 
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl exec -it nginx-initcontainer -- /bin/bash
+Defaulted container "nginx" out of: nginx, pullcode (init)
+root@nginx-initcontainer:/# cd /usr/share/nginx/html/
+ls
+cat index.html
+index.html
+hello
+root@nginx-initcontainer:/usr/share/nginx/html#
+```
+
+此处应该有hello
+
+
+
+退出容器上下文
+
+```bash
+exit
+```
+
+
+
+尝试查看initcontainer的日志
+
+```text
+kubectl logs nginx-initcontainer pullcode
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl logs nginx-initcontainer pullcode
+root@node1:~/k8slab/pod#
+```
+
+因为场景过于简单，此处为空
+
+
+
+清理pod
+
+```bash
+kubectl delete -f nginx-initcontainer.yaml 
+```
+
+
+
+## Lab 13 设置主机host
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano nginx-hostaliases.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-hostaliases
+  namespace: default
+  labels:
+    app: nginx-hostaliases
+  annotations:
+    app: nginx-hostaliases
+spec:
+  dnsPolicy: Default
+  hostNetwork: false
+  restartPolicy: Always
+  hostAliases:
+  - ip: "192.168.0.181"
+    hostnames:
+    - "cka01"
+    - "cka-master"
+  - ip: "192.168.0.41"
+    hostnames:
+    - "cka02"
+  - ip: "192.168.0.241"
+    hostnames:
+    - "cka03"
+  volumes:
+  - name: web-root
+    hostPath:
+      path: /data
+  - name: web-path
+    emptyDir: 
+  initContainers:
+  - name: pullcode
+    image: busybox
+    volumeMounts:
+    - name: web-path
+      mountPath: /data
+    command:
+    - /bin/sh
+    - -c
+    - "echo hello > /data/index.html"
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: Always
+    volumeMounts:
+    - name: web-root
+      mountPath: /data
+    - name: web-path
+      mountPath: /usr/share/nginx/html
+    env:
+    - name: mysqlhost
+      value: "10.96.0.110"
+    - name: mysqlport
+      value: "3306"
+    - name: mysqldb
+      value: "wordpress"
+    ports:
+    - name: web-port
+      containerPort: 80
+      protocol: TCP
+```
+
+
+
+创建pod
+
+```bash
+kubectl apply -f nginx-hostaliases.yaml
+```
+
+
+
+进入pod中的容器，并查看host
+
+```bash
+kubectl exec -it nginx-hostaliases -- /bin/bash
+```
+
+
+
+```bash
+cat /etc/hosts
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl exec -it nginx-hostaliases -- /bin/bash
+Defaulted container "nginx" out of: nginx, pullcode (init)
+root@nginx-hostaliases:/# cat /etc/hosts
+# Kubernetes-managed hosts file.
+127.0.0.1       localhost
+::1     localhost ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+fe00::0 ip6-mcastprefix
+fe00::1 ip6-allnodes
+fe00::2 ip6-allrouters
+10.244.104.13   nginx-hostaliases
+
+# Entries added by HostAliases.
+192.168.0.181   cka01   cka-master
+192.168.0.41    cka02
+192.168.0.241   cka03
+root@nginx-hostaliases:/#
+```
+
+
+
+退出容器上下文
+
+```text
+exit
+```
+
+
+
+作为对比，进入到另一个pod中的容器，并查看host
+
+```bash
+kubectl exec -it nginx -- /bin/bash
+cat /etc/hosts
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl exec -it nginx -- /bin/bash
+root@nginx:/# cat /etc/hosts
+# Kubernetes-managed hosts file.
+127.0.0.1       localhost
+::1     localhost ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+fe00::0 ip6-mcastprefix
+fe00::1 ip6-allnodes
+fe00::2 ip6-allrouters
+10.244.135.3    nginx
+root@nginx:/#
+```
+
+
+
+退出容器上下文
+
+```bash
+exit
+```
+
+
+
+清理pod
+
+```bash
+kubectl delete -f nginx-hostaliases.yaml 
+```
+
+
+
+
+
+## Lab 14 设置pod资源
+
+
+
+使用示例文件创建yaml文件
+
+```bash
+nano nginx-resources.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-resources
+  namespace: default
+  labels:
+    app: nginx-resources
+  annotations:
+    app: nginx-resources
+spec:
+  dnsPolicy: Default
+  hostNetwork: false
+  restartPolicy: Always
+  hostAliases:
+  - ip: "192.168.0.181"
+    hostnames:
+    - "cka01"
+    - "cka-master"
+  - ip: "192.168.0.41"
+    hostnames:
+    - "cka02"
+  - ip: "192.168.0.241"
+    hostnames:
+    - "cka03"
+  volumes:
+  - name: web-root
+    hostPath:
+      path: /data
+  - name: web-path
+    emptyDir: 
+  initContainers:
+  - name: pullcode
+    image: busybox
+    volumeMounts:
+    - name: web-path
+      mountPath: /data
+    command:
+    - /bin/sh
+    - -c
+    - "echo hello > /data/index.html"
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: Always
+    resources:  # 定义资源使用
+      requests: # 下限
+        cpu: "0.1"
+        memory: "32Mi"
+      limits: # 上限
+        cpu: "0.2"
+        memory: "64Mi"
+    volumeMounts:
+    - name: web-root
+      mountPath: /data
+    - name: web-path
+      mountPath: /usr/share/nginx/html
+    env:
+    - name: mysqlhost
+      value: "10.96.0.110"
+    - name: mysqlport
+      value: "3306"
+    - name: mysqldb
+      value: "wordpress"
+    ports:
+    - name: web-port
+      containerPort: 80
+      protocol: TCP
+```
+
+
+
+创建pod
+
+```bash
+kubectl apply -f nginx-resources.yaml 
+```
+
+
+
+查看pod详细信息
+
+```bash
+kubectl describe pod nginx-resources
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl describe pod nginx-resources
+Name:         nginx-resources
+Namespace:    default
+Priority:     0
+Node:         node2/192.168.1.232
+Start Time:   Wed, 21 Dec 2022 13:33:08 +0800
+Labels:       app=nginx-resources
+Annotations:  app: nginx-resources
+              cni.projectcalico.org/containerID: 18df8dd3e1e108be221be4eb0a7d959e3634cb1f75ac001f6fb9f9e2af88f1b6
+              cni.projectcalico.org/podIP: 10.244.104.14/32
+              cni.projectcalico.org/podIPs: 10.244.104.14/32
+Status:       Running
+IP:           10.244.104.14
+IPs:
+  IP:  10.244.104.14
+Init Containers:
+  pullcode:
+    Container ID:  docker://2b95bb158cb4047bbbe6cd818fff1e31bf24c2ce1ad41ced13dc4d212a5c6598
+    Image:         busybox
+    Image ID:      docker-pullable://busybox@sha256:5acba83a746c7608ed544dc1533b87c737a0b0fb730301639a0179f9344b1678
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      /bin/sh
+      -c
+      echo hello > /data/index.html
+    State:          Terminated
+      Reason:       Completed
+      Exit Code:    0
+      Started:      Wed, 21 Dec 2022 13:33:24 +0800
+      Finished:     Wed, 21 Dec 2022 13:33:24 +0800
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /data from web-path (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-nntm2 (ro)
+Containers:
+  nginx:
+    Container ID:   docker://af36c54b1547dadf365f92b675fed4fd9ff6198e9d28dcd3043a3561a1010c99
+    Image:          nginx
+    Image ID:       docker-pullable://nginx@sha256:0d17b565c37bcbd895e9d92315a05c1c3c9a29f762b011a10c54a66cd53c9b31
+    Port:           80/TCP
+    Host Port:      0/TCP
+    State:          Running
+      Started:      Wed, 21 Dec 2022 13:33:25 +0800
+    Ready:          True
+    Restart Count:  0
+    Limits:
+      cpu:     200m
+      memory:  64Mi
+    Requests:
+      cpu:     100m
+      memory:  32Mi
+    Environment:
+      mysqlhost:  10.96.0.110
+      mysqlport:  3306
+      mysqldb:    wordpress
+    Mounts:
+      /data from web-root (rw)
+      /usr/share/nginx/html from web-path (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-nntm2 (ro)
+Conditions:
+  Type              Status
+  Initialized       True
+  Ready             True
+  ContainersReady   True
+  PodScheduled      True
+Volumes:
+  web-root:
+    Type:          HostPath (bare host directory volume)
+    Path:          /data
+    HostPathType:
+  web-path:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:
+    SizeLimit:  <unset>
+  kube-api-access-nntm2:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  38s   default-scheduler  Successfully assigned default/nginx-resources to node2
+  Normal  Pulling    37s   kubelet            Pulling image "busybox"
+  Normal  Pulled     22s   kubelet            Successfully pulled image "busybox" in 15.32797909s
+  Normal  Created    22s   kubelet            Created container pullcode
+  Normal  Started    22s   kubelet            Started container pullcode
+  Normal  Pulling    21s   kubelet            Pulling image "nginx"
+  Normal  Pulled     21s   kubelet            Successfully pulled image "nginx" in 272.388486ms
+  Normal  Created    21s   kubelet            Created container nginx
+  Normal  Started    20s   kubelet            Started container nginx
+```
+
+关注QoSClass定义 `QoS Class: Burstable`
+
+
+
+查看另一个pod详细信息
+
+```bash
+kubectl describe pod nginx
+```
+
+
+
+```bash
+Name:         nginx
+Namespace:    default
+Priority:     0
+Node:         node3/192.168.1.233
+Start Time:   Wed, 21 Dec 2022 09:31:18 +0800
+Labels:       <none>
+Annotations:  cni.projectcalico.org/containerID: 7f025169ec66a6ef670d4fd85f624e8e075ea8b69617241e42451f901afa6f5f
+              cni.projectcalico.org/podIP: 10.244.135.3/32
+              cni.projectcalico.org/podIPs: 10.244.135.3/32
+Status:       Running
+IP:           10.244.135.3
+IPs:
+  IP:  10.244.135.3
+Containers:
+  nginx:
+    Container ID:   docker://c59e02a1d5109f634fe979319deb390d752d167714bed390929bdec8db302462
+    Image:          nginx
+    Image ID:       docker-pullable://nginx@sha256:0d17b565c37bcbd895e9d92315a05c1c3c9a29f762b011a10c54a66cd53c9b31
+    Port:           <none>
+    Host Port:      <none>
+    State:          Running
+      Started:      Wed, 21 Dec 2022 09:31:34 +0800
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-wbl6x (ro)
+Conditions:
+  Type              Status
+  Initialized       True
+  Ready             True
+  ContainersReady   True
+  PodScheduled      True
+Volumes:
+  kube-api-access-wbl6x:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:                      <none>
+```
+
+关注QoSClass定义  `QoS Class:  BestEffort`
+
+
+
+清理pod
+
+```bash
+kubectl delete -f nginx-resources.yaml 
+```
+
+
+
+## Lab 15 静态Pod
+
+
+
+查看kube-system里的pod
+
+```bash
+kubectl get pods -n kube-system -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl get pods -n kube-system -o wide
+NAME                                      READY   STATUS    RESTARTS      AGE    IP               NODE    NOMINATED NODE   READINESS GATES
+calico-kube-controllers-7c845d499-9j9vk   1/1     Running   1 (36d ago)   242d   10.244.166.134   node1   <none>           <none>
+calico-node-57snh                         1/1     Running   1 (36d ago)   242d   192.168.1.232    node2   <none>           <none>
+calico-node-d5clh                         1/1     Running   1 (36d ago)   242d   192.168.1.231    node1   <none>           <none>
+calico-node-qcc6p                         1/1     Running   1 (36d ago)   242d   192.168.1.233    node3   <none>           <none>
+coredns-65c54cc984-rdfmg                  1/1     Running   1 (36d ago)   242d   10.244.166.133   node1   <none>           <none>
+coredns-65c54cc984-rt4wl                  1/1     Running   1 (36d ago)   242d   10.244.166.132   node1   <none>           <none>
+etcd-node1                                1/1     Running   1 (36d ago)   242d   192.168.1.231    node1   <none>           <none>
+kube-apiserver-node1                      1/1     Running   1 (36d ago)   242d   192.168.1.231    node1   <none>           <none>
+kube-controller-manager-node1             1/1     Running   1 (36d ago)   242d   192.168.1.231    node1   <none>           <none>
+kube-proxy-f6zhl                          1/1     Running   1 (36d ago)   242d   192.168.1.231    node1   <none>           <none>
+kube-proxy-jljll                          1/1     Running   1 (36d ago)   242d   192.168.1.233    node3   <none>           <none>
+kube-proxy-qkfvc                          1/1     Running   1 (36d ago)   242d   192.168.1.232    node2   <none>           <none>
+kube-scheduler-node1                      1/1     Running   1 (36d ago)   242d   192.168.1.231    node1   <none>           <none>
+```
+
+
+
+```bash
+kubectl get pods -n kube-system -o wide | grep node1
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl get pods -n kube-system -o wide | grep node1
+calico-kube-controllers-7c845d499-9j9vk   1/1     Running   1 (36d ago)   242d   10.244.166.134   node1   <none>           <none>
+calico-node-d5clh                         1/1     Running   1 (36d ago)   242d   192.168.1.231    node1   <none>           <none>
+coredns-65c54cc984-rdfmg                  1/1     Running   1 (36d ago)   242d   10.244.166.133   node1   <none>           <none>
+coredns-65c54cc984-rt4wl                  1/1     Running   1 (36d ago)   242d   10.244.166.132   node1   <none>           <none>
+etcd-node1                                1/1     Running   1 (36d ago)   242d   192.168.1.231    node1   <none>           <none>
+kube-apiserver-node1                      1/1     Running   1 (36d ago)   242d   192.168.1.231    node1   <none>           <none>
+kube-controller-manager-node1             1/1     Running   1 (36d ago)   242d   192.168.1.231    node1   <none>           <none>
+kube-proxy-f6zhl                          1/1     Running   1 (36d ago)   242d   192.168.1.231    node1   <none>           <none>
+kube-scheduler-node1                      1/1     Running   1 (36d ago)   242d   192.168.1.231    node1   <none>           <none>
+```
+
+重点关注四个组件对应的pod
+
+
+
+查看静态pod的yaml文件
+
+```bash
+cd /etc/kubernetes/manifests/
+ls
+```
+
+
+
+分析其中某个yaml
+
+```bash
+nano kube-apiserver.yaml
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# cd /etc/kubernetes/manifests/
+root@node1:/etc/kubernetes/manifests# ls
+etcd.yaml  kube-apiserver.yaml  kube-controller-manager.yaml  kube-scheduler.yaml
+root@node1:/etc/kubernetes/manifests# cat etcd.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubeadm.kubernetes.io/etcd.advertise-client-urls: https://192.168.1.231:2379
+  creationTimestamp: null
+  labels:
+    component: etcd
+    tier: control-plane
+  name: etcd
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - etcd
+    - --advertise-client-urls=https://192.168.1.231:2379
+    - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+    - --client-cert-auth=true
+    - --data-dir=/var/lib/etcd
+    - --initial-advertise-peer-urls=https://192.168.1.231:2380
+    - --initial-cluster=node1=https://192.168.1.231:2380
+    - --key-file=/etc/kubernetes/pki/etcd/server.key
+    - --listen-client-urls=https://127.0.0.1:2379,https://192.168.1.231:2379
+    - --listen-metrics-urls=http://127.0.0.1:2381
+    - --listen-peer-urls=https://192.168.1.231:2380
+    - --name=node1
+    - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+    - --peer-client-cert-auth=true
+    - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
+    - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+    - --snapshot-count=10000
+    - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+    image: registry.cn-hangzhou.aliyuncs.com/google_containers/etcd:3.5.1-0
+    imagePullPolicy: IfNotPresent
+    livenessProbe:
+      failureThreshold: 8
+      httpGet:
+        host: 127.0.0.1
+        path: /health
+        port: 2381
+        scheme: HTTP
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 15
+    name: etcd
+    resources:
+      requests:
+        cpu: 100m
+        memory: 100Mi
+    startupProbe:
+      failureThreshold: 24
+      httpGet:
+        host: 127.0.0.1
+        path: /health
+        port: 2381
+        scheme: HTTP
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 15
+    volumeMounts:
+    - mountPath: /var/lib/etcd
+      name: etcd-data
+    - mountPath: /etc/kubernetes/pki/etcd
+      name: etcd-certs
+  hostNetwork: true
+  priorityClassName: system-node-critical
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  volumes:
+  - hostPath:
+      path: /etc/kubernetes/pki/etcd
+      type: DirectoryOrCreate
+    name: etcd-certs
+  - hostPath:
+      path: /var/lib/etcd
+      type: DirectoryOrCreate
+    name: etcd-data
+status: {}
+```
+
+
+
+查看pod和nod的信息
+
+```bash
+kubectl get node -o wide
+```
+
+
+
+```bash
+kubectl get pod -o wide
+```
+
+
+
+```bash
+root@node1:/etc/kubernetes/manifests# kubectl get node  -o wide
+NAME    STATUS   ROLES                  AGE    VERSION   INTERNAL-IP     EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+node1   Ready    control-plane,master   242d   v1.23.0   192.168.1.231   <none>        Ubuntu 20.04.4 LTS   5.4.0-107-generic   docker://20.10.14
+node2   Ready    <none>                 242d   v1.23.0   192.168.1.232   <none>        Ubuntu 20.04.4 LTS   5.4.0-107-generic   docker://20.10.14
+node3   Ready    <none>                 242d   v1.23.0   192.168.1.233   <none>        Ubuntu 20.04.4 LTS   5.4.0-107-generic   docker://20.10.14
+root@node1:/etc/kubernetes/manifests# kubectl get pod -o wide
+NAME    READY   STATUS    RESTARTS   AGE     IP             NODE    NOMINATED NODE   READINESS GATES
+nginx   1/1     Running   0          4h11m   10.244.135.3   node3   <none>           <none>
+
+```
+
+
+
+回到实验目录，将某个 yaml 文件拷贝到另一个节点中,本例中选择 node2
+
+```bash
+scp nginx.yaml 192.168.1.232:/etc/kubernetes/manifests/
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# scp nginx.yaml 192.168.1.232:/etc/kubernetes/manifests/
+root@192.168.1.232's password:
+nginx.yaml                                                                                               100%  102    97.4KB/s   00:00 
+```
+
+
+
+查看新启动的静态pod
+
+```bash
+kubectl get pods  -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl get pods  -o wide
+NAME          READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+nginx         1/1     Running   0          4h16m   10.244.135.3    node3   <none>           <none>
+nginx-node2   1/1     Running   0          73s     10.244.104.15   node2   <none>           <none>
+```
+
+
+
+尝试删除静态pod
+
+```bash
+kubectl delete pod nginx-node2
+```
+
+
+
+查看pod列表，证明是无法删除的
+
+```text
+kubectl get pod -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl get pods  -o wide
+NAME          READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+nginx         1/1     Running   0          4h16m   10.244.135.3    node3   <none>           <none>
+nginx-node2   1/1     Running   0          73s     10.244.104.15   node2   <none>           <none>
+root@node1:~/k8slab/pod# kubectl delete pod nginx-node2
+pod "nginx-node2" deleted
+root@node1:~/k8slab/pod# kubectl get pods  -o wide
+NAME          READY   STATUS    RESTARTS   AGE     IP             NODE    NOMINATED NODE   READINESS GATES
+nginx         1/1     Running   0          4h16m   10.244.135.3   node3   <none>           <none>
+nginx-node2   0/1     Pending   0          5s      <none>         node2   <none>           <none>
+root@node1:~/k8slab/pod# kubectl get pods  -o wide
+NAME          READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+nginx         1/1     Running   0          4h17m   10.244.135.3    node3   <none>           <none>
+nginx-node2   1/1     Running   0          12s     10.244.104.15   node2   <none>           <none>
+```
+
+
+
+切换到静态pod所在节点，通过删除yaml文件的方式进行删除
+
+```bash
+cd /etc/kubernetes/manifests/
+rm nginx.yaml
+```
+
+
+
+```bash
+root@node2:~# cd /etc/kubernetes/manifests/
+root@node2:/etc/kubernetes/manifests# dir
+nginx.yaml
+root@node2:/etc/kubernetes/manifests# rm nginx.yaml
+root@node2:/etc/kubernetes/manifests#
+```
+
+
+
+再次查看 pod 列表
+
+```
+kubectl get pods  -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/pod# kubectl get pods  -o wide
+NAME    READY   STATUS    RESTARTS   AGE     IP             NODE    NOMINATED NODE   READINESS GATES
+nginx   1/1     Running   0          4h19m   10.244.135.3   node3   <none>           <none>
+```
+
+
+
+## Lab 16 pod健康检查
+
+
+
+使用示例文件创建yaml文件
+
+```text
+nano nginx-healthcheck-readinessprobe.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-readinessprobe
+  namespace: default
+  labels:
+    app: nginx-readinessprobe
+  annotations:
+    app: nginx-readinessprobe
+spec:
+  dnsPolicy: Default
+  hostNetwork: false
+  restartPolicy: Always
+  hostAliases:
+  - ip: "192.168.0.181"
+    hostnames:
+    - "cka01"
+    - "cka-master"
+  - ip: "192.168.0.41"
+    hostnames:
+    - "cka02"
+  - ip: "192.168.0.241"
+    hostnames:
+    - "cka03"
+  volumes:
+  - name: web-root
+    hostPath:
+      path: /data
+  - name: web-path
+    emptyDir: 
+  initContainers:
+  - name: pullcode
+    image: busybox
+    volumeMounts:
+    - name: web-path
+      mountPath: /data
+    command:
+    - /bin/sh
+    - -c
+    - "echo hello > /data/index.html; touch /data/healthy"
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: Always
+    resources:
+      requests:
+        cpu: "0.1"
+        memory: "32Mi"
+      limits:
+        cpu: "0.2"
+        memory: "64Mi"
+    startupProbe: # 启动检查，脚本探活
+      exec:
+        command:
+          - /bin/sh
+          - -c
+          - "cat /usr/share/nginx/html/healthy"
+      initialDelaySeconds: 5 
+      periodSeconds: 1
+      timeoutSeconds: 1
+      failureThreshold: 18
+      successThreshold: 1 
+    livenessProbe:  # 存活检查，端口探活
+      tcpSocket:
+        port: 8080
+      periodSeconds: 10
+      timeoutSeconds: 1
+      failureThreshold: 3
+      successThreshold: 1 
+    readinessProbe: # 就绪检查，路径探活
+      httpGet:
+        port: 8080
+        path: /
+      periodSeconds: 1
+      timeoutSeconds: 1
+      failureThreshold: 3
+      successThreshold: 1 
+    volumeMounts:
+    - name: web-root
+      mountPath: /data
+    - name: web-path
+      mountPath: /usr/share/nginx/html
+    env:
+    - name: mysqlhost
+      value: "10.96.0.110"
+    - name: mysqlport
+      value: "3306"
+    - name: mysqldb
+      value: "wordpress"
+    ports:
+    - name: web-port
+      containerPort: 80
+      protocol: TCP
+```
+
+
+
+创建pod
+
+```text
+kubectl apply -f nginx-healthcheck-readinessprobe.yaml 
+```
+
+
+
+查看pod
+
+```text
+kubectl get pod -o wide
+```
+
+*多查看几次，可以观测到pod有重启现象
+
+
+
+查看pod详细信息
+
+```text
+kubectl describe pod nginx-readinessprobe
+```
+
+*可以观察到Liveness和Readiness都有报错
+
+
+
+删除pod
+
+```text
+kubectl delete -f nginx-healthcheck-readinessprobe.yaml 
+```
+
+
+
+修改yaml文件
+
+```text
+nano nginx-healthcheck-readinessprobe.yaml
+```
+
+*将livenessProbe的端口号改为80
+
+
+
+重新创建pod
+
+```text
+kubectl apply -f nginx-healthcheck-readinessprobe.yaml 
+```
+
+
+
+查看pod
+
+```text
+kubectl get pod -o wide
+```
+
+*多查看几次，pod虽然不再重启，但是一直未能就绪
+
+
+
+查看pod详细信息
+
+```text
+kubectl describe pod nginx-readinessprobe
+```
+
+*可以观察到Readiness还有报错
+
+
+
+删除pod
+
+```text
+kubectl delete -f nginx-healthcheck-readinessprobe.yaml 
+```
+
+
+
+修改yaml文件
+
+```text
+nano nginx-healthcheck-readinessprobe.yaml
+```
+
+*将readinessProbe的端口号改为80
+
+
+
+重新创建pod
+
+```text
+kubectl apply -f nginx-healthcheck-readinessprobe.yaml 
+```
+
+
+
+查看pod
+
+```text
+kubectl get pod -o wide
+```
+
+*pod应该很快完全就绪
+
+
+
+查看pod详细信息
+
+```text
+kubectl describe pod nginx-readinessprobe
+```
+
+*除了查看Events中没有报错信息之外，重点查看Condition中各个阶段是否都已经Ready
+
+
+
+清理pod
+
+```text
+ kubectl delete -f nginx-healthcheck-readinessprobe.yaml 
+```
+
+
+
+
+
+
+
+备注
+
+
+
+1.更多实操所需脚本信息请参考github repo：
+
+[cloudzun/k8slabgithub.com/cloudzun/k8slab](https://link.zhihu.com/?target=https%3A//github.com/cloudzun/k8slab)
+
+2.如果需要更多的实验操作指导，请留言或私信。
+
+\3. 换源，使用清华大学debian源
+
+```text
+cat > /etc/apt/sources.list << EOF 
+deb Index of /debian/ buster main contrib non-free
+# deb-src Index of /debian/ buster main contrib non-free
+deb Index of /debian/ buster-updates main contrib non-free
+# deb-src Index of /debian/ buster-updates main contrib non-free
+deb Index of /debian/ buster-backports main contrib non-free
+# deb-src Index of /debian/ buster-backports main contrib non-free
+deb Index of /debian-security/ buster/updates main contrib non-free
+# deb-src Index of /debian-security/ buster/updates main contrib non-free
+EOF
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+# 工作负载调度
+
+
+
+# 网络和服务基础
+
+
+
+# 实现基本存储
+
+
+
+# ConfigMap 和 Secret
+
+
+
+# 群集资源调度
+
+
+
+# 验证和授权
+
+
+
+# HPA和Dashboard
+
+
+
