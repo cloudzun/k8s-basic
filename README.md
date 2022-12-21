@@ -4618,7 +4618,7 @@ webserver-strategy   6/6     6            6           10m   nginx        nginx:1
 
 删除deployment
 
-```text
+```bash
 kubectl delete -f webserver-strategy.yaml
 ```
 
@@ -4628,9 +4628,9 @@ kubectl delete -f webserver-strategy.yaml
 
 
 
-使用示例文件创建yaml文件
+使用示例文件创建 yaml 文件
 
-```text
+```bash
 nano webserver.yaml
 ```
 
@@ -4656,95 +4656,17 @@ spec:
       labels:
         app: webserver
     spec:
-      dnsPolicy: Default
-      hostNetwork: false
-      restartPolicy: Always
-      hostAliases:
-      - ip: "192.168.0.181"
-        hostnames:
-        - "cka01"
-      - ip: "192.168.0.41"
-        hostnames:
-        - "cka02"
-      - ip: "192.168.0.241"
-        hostnames:
-        - "cka03"
-      volumes:
-      - name: web-root
-        hostPath:
-          path: /data
-      - name: web-path
-        emptyDir: 
-      initContainers:
-      - name: pullcode
-        image: busybox
-        volumeMounts:
-        - name: web-path
-          mountPath: /data
-        command:
-        - /bin/sh
-        - -c
-        - "echo hello > /data/index.html; touch /data/healthy"
       containers:
       - name: nginx
         image: nginx:1.7.9
-        imagePullPolicy: Always
-        resources:
-          requests:
-            cpu: "0.1"
-            memory: "32Mi"
-          limits:
-            cpu: "0.2"
-            memory: "64Mi"
-        startupProbe:
-          exec:
-            command:
-              - /bin/sh
-              - -c
-              - "cat /usr/share/nginx/html/healthy"
-          initialDelaySeconds: 5 
-          periodSeconds: 1
-          timeoutSeconds: 1
-          failureThreshold: 18
-          successThreshold: 1 
-        livenessProbe:
-          tcpSocket:
-            port: 80
-          periodSeconds: 10
-          timeoutSeconds: 1
-          failureThreshold: 3
-          successThreshold: 1 
-        readinessProbe:
-          httpGet:
-            port: 80
-            path: /
-          periodSeconds: 1
-          timeoutSeconds: 1
-          failureThreshold: 3
-          successThreshold: 1 
-        volumeMounts:
-        - name: web-root
-          mountPath: /data
-        - name: web-path
-          mountPath: /usr/share/nginx/html
-        env:
-        - name: mysqlhost
-          value: "10.96.0.110"
-        - name: mysqlport
-          value: "3306"
-        - name: mysqldb
-          value: "wordpress"
-        ports:
-        - name: web-port
-          containerPort: 80
-          protocol: TCP
+        resources: {}
 ```
 
 
 
 创建StatefulSet
 
-```text
+```bash
 kubectl apply -f webserver.yaml
 ```
 
@@ -4752,41 +4674,88 @@ kubectl apply -f webserver.yaml
 
 查看pod创建过程
 
-```text
+```bash
 kubectl get pod -o wide -w
 ```
 
-*关注pod的名称和ip地址
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl get pod -o wide -w
+NAME          READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+nginx         1/1     Running   0          5h39m   10.244.135.3    node3   <none>           <none>
+webserver-0   1/1     Running   0          12s     10.244.104.3    node2   <none>           <none>
+webserver-1   1/1     Running   0          10s     10.244.135.49   node3   <none>           <none>
+webserver-2   1/1     Running   0          8s      10.244.104.4    node2   <none>           <none>
+```
+
+关注 pod 的名称和 ip 地址
 
 
 
-查看StatefulSet
+查看 StatefulSet
 
-```text
+```bash
 kubectl get sts -o wide
 ```
 
 
 
-```text
-kubectl get sts -o yaml
+```bash
+root@node1:~/k8slab/deployment# kubectl get sts -o wide
+NAME        READY   AGE   CONTAINERS   IMAGES
+webserver   3/3     78s   nginx        nginx:1.7.9
 ```
 
 
 
-查看StatefulSet细节
+查看 StatefulSet细节
 
-```text
+```bash
 kubectl describe sts webserver
 ```
 
-*关注UpdateStrategy
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl describe sts webserver
+Name:               webserver
+Namespace:          default
+CreationTimestamp:  Wed, 21 Dec 2022 15:10:51 +0800
+Selector:           app=webserver
+Labels:             app=webserver
+Annotations:        <none>
+Replicas:           3 desired | 3 total
+Update Strategy:    RollingUpdate
+  Partition:        0
+Pods Status:        3 Running / 0 Waiting / 0 Succeeded / 0 Failed
+Pod Template:
+  Labels:  app=webserver
+  Containers:
+   nginx:
+    Image:        nginx:1.7.9
+    Port:         <none>
+    Host Port:    <none>
+    Environment:  <none>
+    Mounts:       <none>
+  Volumes:        <none>
+Volume Claims:    <none>
+Events:
+  Type    Reason            Age    From                    Message
+  ----    ------            ----   ----                    -------
+  Normal  SuccessfulCreate  2m53s  statefulset-controller  create Pod webserver-0 in StatefulSet webserver successful
+  Normal  SuccessfulCreate  2m51s  statefulset-controller  create Pod webserver-1 in StatefulSet webserver successful
+  Normal  SuccessfulCreate  2m49s  statefulset-controller  create Pod webserver-2 in StatefulSet webserver successful
+
+```
+
+关注 `Update Strategy`
 
 
 
 修改StatefulSet配置，将映像版本提升到1.9.1
 
-```text
+```bash
 kubectl set image sts webserver nginx=nginx:1.9.1
 ```
 
@@ -4794,27 +4763,52 @@ kubectl set image sts webserver nginx=nginx:1.9.1
 
 观测pod滚动升级过程
 
-```text
+```bash
 kubectl get pod -o wide -w 
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl set image sts webserver nginx=nginx:1.9.1
+statefulset.apps/webserver image updated
+root@node1:~/k8slab/deployment# kubectl get pod -o wide -w
+NAME          READY   STATUS              RESTARTS   AGE     IP             NODE    NOMINATED NODE   READINESS GATES
+nginx         1/1     Running             0          5h43m   10.244.135.3   node3   <none>           <none>
+webserver-0   1/1     Running             0          3m45s   10.244.104.3   node2   <none>           <none>
+webserver-1   0/1     ContainerCreating   0          0s      <none>         node3   <none>           <none>
+webserver-2   1/1     Running             0          3s      10.244.104.5   node2   <none>           <none>
+webserver-1   0/1     ContainerCreating   0          1s      <none>         node3   <none>           <none>
+webserver-1   1/1     Running             0          2s      10.244.135.50   node3   <none>           <none>
+webserver-0   1/1     Terminating         0          3m47s   10.244.104.3    node2   <none>           <none>
+webserver-0   1/1     Terminating         0          3m47s   10.244.104.3    node2   <none>           <none>
+webserver-0   0/1     Terminating         0          3m48s   10.244.104.3    node2   <none>           <none>
+webserver-0   0/1     Terminating         0          3m48s   10.244.104.3    node2   <none>           <none>
+webserver-0   0/1     Terminating         0          3m48s   10.244.104.3    node2   <none>           <none>
+webserver-0   0/1     Pending             0          0s      <none>          <none>   <none>           <none>
+webserver-0   0/1     Pending             0          0s      <none>          node2    <none>           <none>
+webserver-0   0/1     ContainerCreating   0          0s      <none>          node2    <none>           <none>
+webserver-0   0/1     ContainerCreating   0          1s      <none>          node2    <none>           <none>
+webserver-0   1/1     Running             0          2s      10.244.104.6    node2    <none>           <none>
 ```
 
 
 
 删除StatefulSet
 
-```text
+```bash
 kubectl delete -f webserver.yaml
 ```
 
 
 
-## Lab 4 Job和CornJob
+## Lab 4  使用 job 实现一次性作业 
 
 
 
 使用示例文件创建yaml文件
 
-```text
+```bash
 nano job.yaml
 ```
 
@@ -4840,7 +4834,7 @@ spec:
 
 创建job
 
-```text
+```bash
 kubectl create -f job.yaml
 ```
 
@@ -4848,54 +4842,137 @@ kubectl create -f job.yaml
 
 观察对应的pod，几秒之后运算结束，pod会进入到completed状态
 
-```text
+```bash
 kubectl get pod -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl get pod -o wide
+NAME       READY   STATUS              RESTARTS   AGE   IP             NODE    NOMINATED NODE   READINESS GATES
+nginx      1/1     Running             0          8h    10.244.135.3   node3   <none>           <none>
+pi-dzfkn   0/1     ContainerCreating   0          16s   <none>         node2   <none>           <none>
+root@node1:~/k8slab/deployment# kubectl get pod -o wide
+NAME       READY   STATUS      RESTARTS   AGE   IP             NODE    NOMINATED NODE   READINESS GATES
+nginx      1/1     Running     0          8h    10.244.135.3   node3   <none>           <none>
+pi-dzfkn   0/1     Completed   0          31s   10.244.104.7   node2   <none>           <none>
 ```
 
 
 
 查看运算结果
 
-```text
-kubectl logs pi-xxx
+```bash
+kubectl logs pi-dzfkn 
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl logs pi-dzfkn
+3.141592653589793238462643383279502884197169399375105820974944592307\
+81640628620899862803482534211706798214808651328230664709384460955058\
+22317253594081284811174502841027019385211055596446229489549303819644\
+28810975665933446128475648233786783165271201909145648566923460348610\
+45432664821339360726024914127372458700660631558817488152092096282925\
+40917153643678925903600113305305488204665213841469519415116094330572\
+70365759591953092186117381932611793105118548074462379962749567351885\
+75272489122793818301194912983367336244065664308602139494639522473719\
+07021798609437027705392171762931767523846748184676694051320005681271\
+45263560827785771342757789609173637178721468440901224953430146549585\
+37105079227968925892354201995611212902196086403441815981362977477130\
+99605187072113499999983729780499510597317328160963185950244594553469\
+08302642522308253344685035261931188171010003137838752886587533208381\
+42061717766914730359825349042875546873115956286388235378759375195778\
+18577805321712268066130019278766111959092164201988
 ```
 
 
 
 查看job对象
 
-```text
+```bash
 kubectl describe jobs/pi
 ```
 
 
 
-查看jobs
+```bash
+root@node1:~/k8slab/deployment# kubectl describe jobs/pi
+Name:             pi
+Namespace:        default
+Selector:         controller-uid=b97fb100-b9cf-4112-b48f-cdd0ab8e1944
+Labels:           controller-uid=b97fb100-b9cf-4112-b48f-cdd0ab8e1944
+                  job-name=pi
+Annotations:      batch.kubernetes.io/job-tracking:
+Parallelism:      1
+Completions:      1
+Completion Mode:  NonIndexed
+Start Time:       Wed, 21 Dec 2022 18:01:52 +0800
+Completed At:     Wed, 21 Dec 2022 18:02:15 +0800
+Duration:         23s
+Pods Statuses:    0 Active / 1 Succeeded / 0 Failed
+Pod Template:
+  Labels:  controller-uid=b97fb100-b9cf-4112-b48f-cdd0ab8e1944
+           job-name=pi
+  Containers:
+   pi:
+    Image:      resouer/ubuntu-bc
+    Port:       <none>
+    Host Port:  <none>
+    Command:
+      sh
+      -c
+      echo 'scale=1000; 4*a(1)' | bc -l
+    Environment:  <none>
+    Mounts:       <none>
+  Volumes:        <none>
+Events:
+  Type    Reason            Age   From            Message
+  ----    ------            ----  ----            -------
+  Normal  SuccessfulCreate  101s  job-controller  Created pod: pi-dzfkn
+  Normal  Completed         78s   job-controller  Job completed
+```
 
-```text
+
+
+查看 jobs
+
+```bash
 kubectl get jobs -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl get jobs -o wide
+NAME   COMPLETIONS   DURATION   AGE    CONTAINERS   IMAGES              SELECTOR
+pi     1/1           23s        2m8s   pi           resouer/ubuntu-bc   controller-uid=b97fb100-b9cf-4112-b48f-cdd0ab8e1944
 ```
 
 
 
 删除job
 
-```text
+```bash
 kubectl delete -f job.yaml
 ```
 
 
 
+## Lab 5 使用 cronjob 实现定时作业 
+
 使用示例文件创建yaml文件
 
-```text
+```bash
 nano cronjob.yaml
 ```
 
 
 
 ```yaml
-apiVersion: batch/v1beta1
+apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: hello
@@ -4919,7 +4996,7 @@ spec:
 
 创建cornjob
 
-```text
+```bash
 kubectl create -f cronjob.yaml
 ```
 
@@ -4927,35 +5004,125 @@ kubectl create -f cronjob.yaml
 
 查看pods
 
-```text
+```bash
 kubectl get pod -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/deployment# kubectl get pod -o wide
+NAME                   READY   STATUS      RESTARTS   AGE   IP             NODE    NOMINATED NODE   READINESS GATES
+hello-27860285-qzrtw   0/1     Completed   0          22s   10.244.104.8   node2   <none>           <none>
+nginx                  1/1     Running     0          8h    10.244.135.3   node3   <none>           <none>
 ```
 
 
 
 每隔一分钟执行一次查看jobs
 
-```text
+```bash
 kubectl get jobs -o wide
 ```
 
 
 
-查看cronjob
+```bash
+root@node1:~/k8slab/deployment# kubectl get jobs -o wide
+NAME             COMPLETIONS   DURATION   AGE    CONTAINERS   IMAGES    SELECTOR
+hello-27860285   1/1           17s        3m3s   hello        busybox   controller-uid=e93d4b9b-a3a6-4bd3-bb79-3b6f8e64610a
+hello-27860286   1/1           16s        2m3s   hello        busybox   controller-uid=e0364cec-3436-49f6-aa89-e55ae0b51c3b
+hello-27860287   1/1           17s        63s    hello        busybox   controller-uid=a4f5dba3-d577-4581-b411-3b87f3092f0c
+hello-27860288   0/1           3s         3s     hello        busybox   controller-uid=503bfd3e-653c-4b3e-a37e-6d7e88f5c795
+```
 
-```text
+
+
+查看 cronjob
+
+```bash
 kubectl get cronjob hello
 ```
 
 
 
-删除cornjob
+```bash
+root@node1:~/k8slab/deployment# kubectl get cronjob hello
+NAME    SCHEDULE      SUSPEND   ACTIVE   LAST SCHEDULE   AGE
+hello   */1 * * * *   False     0        41s             3m51s
+```
 
-```text
+
+
+
+
+删除 cronjob
+
+```bash
 kubectl delete -f cronjob.yaml
 ```
 
 
+
+## Lab 5 使用 DaemonSet 运行守护进程应用
+
+使用以下范例，创建deamonset yaml
+
+```bash
+nano katacoda-daemonsets.yaml 
+```
+
+
+
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app: katacoda-daemonsets
+  name: katacoda-daemonsets
+spec:
+  selector:
+    matchLabels:
+      app: katacoda-daemonsets
+  template:
+    metadata:
+      labels:
+        app: katacoda-daemonsets
+    spec:
+      containers:
+      - image: katacoda/docker-http-server
+        name: docker-http-server
+        resources: {}
+```
+
+
+
+启用DaemonSet
+
+```bash
+kubectl apply -f katacoda-daemonsets.yaml 
+```
+
+
+
+观察pod
+
+```
+kubectl get pods -o wide
+```
+
+ 
+
+```bash
+root@node1:~/k8slab/deployment# kubectl get pods -o wide
+NAME                        READY   STATUS    RESTARTS   AGE   IP              NODE    NOMINATED NODE   READINESS GATES
+katacoda-daemonsets-l79w6   1/1     Running   0          48s   10.244.104.15   node2   <none>           <none>
+katacoda-daemonsets-qfw82   1/1     Running   0          48s   10.244.135.51   node3   <none>           <none>
+nginx                       1/1     Running   0          8h    10.244.135.3    node3   <none>           <none>
+```
+
+每个节点都有一个 katacoda，master 节点暂时还没有
 
 
 
