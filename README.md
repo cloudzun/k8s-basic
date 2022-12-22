@@ -9677,9 +9677,1205 @@ cp config.20210204 config
 
 
 
-# HPA 和 Dashboard
+# 性能管理和监控
+
+
+
+## Lab 1 安装 metrics-server
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# pwd
+/root/k8slab/perfmon
+```
+
+
+
+安装 metrics-server
+
+```bash
+kubectl apply -f metrics-server.yaml
+```
+
+
+
+查看pod
+
+```bash
+kubectl get pod -n kube-system
+```
+
+
+
+```bash
+kubectl get pod -n kube-system | grep metrics-server
+```
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl get pod -n kube-system | grep metrics-server
+metrics-server-756db4c674-gxm6h           1/1     Running   0             2m27s
+```
+
+
+
+测试功能
+
+```bash
+kubectl top node
+```
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl top node
+NAME    CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%
+node1   320m         8%     1929Mi          24%
+node2   146m         3%     1607Mi          20%
+node3   167m         4%     1478Mi          18%
+```
+
+
+
+```bash
+kubectl top pod
+```
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl top pod
+NAME                        CPU(cores)   MEMORY(bytes)
+katacoda-daemonsets-5l28c   0m           1Mi
+katacoda-daemonsets-vkrpj   0m           1Mi
+katacoda-daemonsets-wh7hv   1m           1Mi
+```
+
+
+
+```bash
+kubectl top pod -A
+```
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl top pod -A
+NAMESPACE       NAME                                        CPU(cores)   MEMORY(bytes)
+default         katacoda-daemonsets-5l28c                   0m           1Mi
+default         katacoda-daemonsets-vkrpj                   0m           1Mi
+default         katacoda-daemonsets-wh7hv                   1m           1Mi
+ingress-nginx   ingress-nginx-controller-76d86f9848-8r5jq   3m           92Mi
+ingress-nginx   ingress-nginx-controller-76d86f9848-klxnj   3m           91Mi
+kube-system     calico-kube-controllers-7c845d499-9j9vk     5m           22Mi
+kube-system     calico-node-57snh                           53m          147Mi
+kube-system     calico-node-d5clh                           59m          148Mi
+kube-system     calico-node-qcc6p                           65m          146Mi
+kube-system     coredns-65c54cc984-rdfmg                    3m           13Mi
+kube-system     coredns-65c54cc984-rt4wl                    3m           13Mi
+kube-system     etcd-node1                                  32m          59Mi
+kube-system     kube-apiserver-node1                        80m          408Mi
+kube-system     kube-controller-manager-node1               27m          56Mi
+kube-system     kube-proxy-f6zhl                            1m           19Mi
+kube-system     kube-proxy-jljll                            1m           19Mi
+kube-system     kube-proxy-qkfvc                            1m           18Mi
+kube-system     kube-scheduler-node1                        6m           20Mi
+kube-system     metrics-server-756db4c674-gxm6h             5m           15Mi
+```
+
+
+
+```bash
+kubectl top pod | sort -k3 -nr 
+```
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl top pod -A | sort -k3 -nr
+kube-system     kube-apiserver-node1                        66m          359Mi
+kube-system     calico-node-qcc6p                           61m          146Mi
+kube-system     calico-node-57snh                           55m          147Mi
+kube-system     calico-node-d5clh                           44m          147Mi
+kube-system     kube-controller-manager-node1               26m          54Mi
+kube-system     etcd-node1                                  26m          60Mi
+kube-system     metrics-server-756db4c674-gxm6h             5m           14Mi
+kube-system     kube-scheduler-node1                        5m           20Mi
+kube-system     calico-kube-controllers-7c845d499-9j9vk     5m           22Mi
+kube-system     coredns-65c54cc984-rt4wl                    2m           13Mi
+kube-system     coredns-65c54cc984-rdfmg                    2m           13Mi
+ingress-nginx   ingress-nginx-controller-76d86f9848-klxnj   2m           91Mi
+ingress-nginx   ingress-nginx-controller-76d86f9848-8r5jq   2m           92Mi
+kube-system     kube-proxy-qkfvc                            1m           18Mi
+kube-system     kube-proxy-jljll                            1m           19Mi
+kube-system     kube-proxy-f6zhl                            1m           19Mi
+default         katacoda-daemonsets-wh7hv                   1m           1Mi
+NAMESPACE       NAME                                        CPU(cores)   MEMORY(bytes)
+default         katacoda-daemonsets-vkrpj                   0m           1Mi
+default         katacoda-daemonsets-5l28c                   0m           1Mi
+```
+
+
+
+```bash
+kubectl top pod -A | sort -k3 -nr | head -1 
+```
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl top pod -A | sort -k3 -nr | head -1
+kube-system     kube-apiserver-node1                        68m          359Mi
+```
+
+
+
+```bash
+kubectl top pod -A | sort -k3 -nr | head -1 | awk '{print $2}'
+```
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl top pod -A | sort -k3 -nr | head -1 | awk '{print $2}'
+kube-apiserver-node1
+```
+
+
+
+```bash
+kubectl top pod -A | sort -k3 -nr | head -1 | awk '{print $2}' >/tmp/memtop.txt
+```
+
+CKA 考试真题
 
 
 
 
+
+## Lab 2 启用 HPA, 实现工作负载水平扩展
+
+
+
+修改 kube-controller-manager.yaml，增加启动参数
+
+```bash
+nano /etc/kubernetes/manifests/kube-controller-manager.yaml 
+```
+
+
+
+讲下列四行加入到配置文件中
+
+```bash
+    - --horizontal-pod-autoscaler-use-rest-clients=true
+    - --horizontal-pod-autoscaler-downscale-delay=5m0s
+    - --horizontal-pod-autoscaler-upscale-delay=20s
+    - --horizontal-pod-autoscaler-sync-period=10s
+```
+
+
+
+修改好之后，观察 kube-controller-manager 的自动重启
+
+```bash
+kubectl get pod -n kube-system | grep kube-controller-manager
+```
+
+
+
+使用范例创建 podinfo
+
+```bash
+nano podinfo.yaml
+```
+
+
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: podinfo
+spec:
+  selector:
+    matchLabels:
+      app: podinfo
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: podinfo
+      annotations:
+prometheus.io/scrape: "true"
+    spec:
+      containers:
+        - name: podinfod
+          image: stefanprodan/podinfo:2.0.0
+          imagePullPolicy: Always
+          #command:
+          #  - ./podinfo
+          #  - -port=9898
+          #  - -logtostderr=true
+          #  - -v=2
+          volumeMounts:
+            - name: metadata
+              mountPath: /etc/podinfod/metadata
+              readOnly: true
+          ports:
+            - containerPort: 9898
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 9898
+            initialDelaySeconds: 1
+            periodSeconds: 2
+            failureThreshold: 1
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9898
+            initialDelaySeconds: 1
+            periodSeconds: 3
+            failureThreshold: 2
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "1m"
+            limits:
+              memory: "256Mi"
+              cpu: "100m"
+      volumes:
+        - name: metadata
+          downwardAPI:
+            items:
+              - path: "labels"
+                fieldRef:
+                  fieldPath: metadata.labels
+              - path: "annotations"
+                fieldRef:
+                  fieldPath: metadata.annotations
+```
+
+
+
+
+
+创建pod
+
+```bash
+kubectl apply -f podinfo.yaml
+```
+
+
+
+查看 pod，重点关注数量
+
+```bash
+kubectl get pod | grep podinfo
+```
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl get pod | grep podinfo
+podinfo-6ff67f567b-kvszn    1/1     Running   0          39s
+podinfo-6ff67f567b-pk75b    1/1     Running   0          39s
+```
+
+
+
+使用范例创建 podinfo HPA
+
+```bash
+nano podinfo-hpa.yaml
+```
+
+
+
+```yaml
+---
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: podinfo
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: podinfo
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: AverageValue
+          averageValue: 200M
+```
+
+
+
+启用 HPA
+
+```bash
+kubectl apply -f podinfo-hpa.yaml
+```
+
+
+
+查看 HPA  关注 target 和 replica
+
+```bash
+kubectl get hpa
+```
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl get hpa
+NAME      REFERENCE            TARGETS                         MINPODS   MAXPODS   REPLICAS   AGE
+podinfo   Deployment/podinfo   <unknown>/200M, <unknown>/80%   2         10        0          15s
+```
+
+
+
+```bash
+kubectl get hpa -o yaml
+```
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl get hpa -o yaml
+apiVersion: v1
+items:
+- apiVersion: autoscaling/v2
+  kind: HorizontalPodAutoscaler
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"autoscaling/v2beta2","kind":"HorizontalPodAutoscaler","metadata":{"annotations":{},"name":"podinfo","namespace":"default"},"spec":{"maxReplicas":10,"metrics":[{"resource":{"name":"cpu","target":{"averageUtilization":80,"type":"Utilization"}},"type":"Resource"},{"resource":{"name":"memory","target":{"averageValue":"200M","type":"AverageValue"}},"type":"Resource"}],"minReplicas":2,"scaleTargetRef":{"apiVersion":"apps/v1","kind":"Deployment","name":"podinfo"}}}
+    creationTimestamp: "2022-12-22T08:06:28Z"
+    name: podinfo
+    namespace: default
+    resourceVersion: "110102"
+    uid: fba598a7-17f1-4f53-9548-b74ad36d97ee
+  spec:
+    maxReplicas: 10
+    metrics:
+    - resource:
+        name: memory
+        target:
+          averageValue: 200M
+          type: AverageValue
+      type: Resource
+    - resource:
+        name: cpu
+        target:
+          averageUtilization: 80
+          type: Utilization
+      type: Resource
+    minReplicas: 2
+    scaleTargetRef:
+      apiVersion: apps/v1
+      kind: Deployment
+      name: podinfo
+  status:
+    conditions:
+    - lastTransitionTime: "2022-12-22T08:06:43Z"
+      message: recommended size matches current size
+      reason: ReadyForNewScale
+      status: "True"
+      type: AbleToScale
+    - lastTransitionTime: "2022-12-22T08:06:43Z"
+      message: the HPA was able to successfully calculate a replica count from cpu
+        resource utilization (percentage of request)
+      reason: ValidMetricFound
+      status: "True"
+      type: ScalingActive
+    - lastTransitionTime: "2022-12-22T08:06:43Z"
+      message: the desired count is within the acceptable range
+      reason: DesiredWithinRange
+      status: "False"
+      type: ScalingLimited
+    currentMetrics:
+    - resource:
+        current:
+          averageValue: "15659008"
+        name: memory
+      type: Resource
+    - resource:
+        current:
+          averageUtilization: 100
+          averageValue: 1m
+        name: cpu
+      type: Resource
+    currentReplicas: 3
+    desiredReplicas: 3
+    lastScaleTime: "2022-12-22T08:06:43Z"
+kind: List
+metadata:
+  resourceVersion: ""
+  selfLink: ""
+```
+
+
+
+查看 pod，重点关注数量，查看水平扩展效果
+
+```bash
+kubectl get pod -o wide | grep podinfo
+```
+
+
+
+查看 pod 资源使用
+
+```bash
+kubectl top pod | grep podinfo
+```
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl get pod -o wide | grep podinfo
+podinfo-6ff67f567b-cqspt    1/1     Running   0          2m48s   10.244.135.13    node3   <none>           <none>
+podinfo-6ff67f567b-kvszn    1/1     Running   0          6m5s    10.244.135.14    node3   <none>           <none>
+podinfo-6ff67f567b-nkvj4    1/1     Running   0          108s    10.244.104.48    node2   <none>           <none>
+podinfo-6ff67f567b-pk75b    1/1     Running   0          6m5s    10.244.104.49    node2   <none>           <none>
+podinfo-6ff67f567b-zkjw6    1/1     Running   0          4m33s   10.244.104.50    node2   <none>           <none>
+root@node1:~/k8slab/perfmon# kubectl top pod | grep podinfo
+podinfo-6ff67f567b-cqspt    1m           15Mi
+podinfo-6ff67f567b-kvszn    1m           15Mi
+podinfo-6ff67f567b-nkvj4    1m           14Mi
+podinfo-6ff67f567b-pk75b    1m           15Mi
+podinfo-6ff67f567b-zkjw6    1m           15Mi
+```
+
+
+
+查看扩展过程
+
+```bash
+kubectl describe hpa podinfo
+```
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl describe hpa podinfo
+Warning: autoscaling/v2beta2 HorizontalPodAutoscaler is deprecated in v1.23+, unavailable in v1.26+
+Name:                                                  podinfo
+Namespace:                                             default
+Labels:                                                <none>
+Annotations:                                           <none>
+CreationTimestamp:                                     Thu, 22 Dec 2022 16:06:28 +0800
+Reference:                                             Deployment/podinfo
+Metrics:                                               ( current / target )
+  resource memory on pods:                             15880192 / 200M
+  resource cpu on pods  (as a percentage of request):  100% (1m) / 80%
+Min replicas:                                          2
+Max replicas:                                          10
+Deployment pods:                                       7 current / 7 desired
+Conditions:
+  Type            Status  Reason              Message
+  ----            ------  ------              -------
+  AbleToScale     True    ReadyForNewScale    recommended size matches current size
+  ScalingActive   True    ValidMetricFound    the HPA was able to successfully calculate a replica count from cpu resource utilization (percentage of request)
+  ScalingLimited  False   DesiredWithinRange  the desired count is within the acceptable range
+Events:
+  Type    Reason             Age    From                       Message
+  ----    ------             ----   ----                       -------
+  Normal  SuccessfulRescale  5m18s  horizontal-pod-autoscaler  New size: 3; reason: cpu resource utilization (percentage of request) above target
+  Normal  SuccessfulRescale  3m33s  horizontal-pod-autoscaler  New size: 4; reason: cpu resource utilization (percentage of request) above target
+  Normal  SuccessfulRescale  2m33s  horizontal-pod-autoscaler  New size: 5; reason: cpu resource utilization (percentage of request) above target
+  Normal  SuccessfulRescale  32s    horizontal-pod-autoscaler  New size: 7; reason: cpu resource utilization (percentage of request) above target
+```
+
+
+
+查看 deployment
+
+```bash
+kubectl describe deploy podinfo
+```
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl describe deploy podinfo
+Name:                   podinfo
+Namespace:              default
+CreationTimestamp:      Thu, 22 Dec 2022 16:05:11 +0800
+Labels:                 <none>
+Annotations:            deployment.kubernetes.io/revision: 1
+Selector:               app=podinfo
+Replicas:               7 desired | 7 updated | 7 total | 7 available | 0 unavailable
+StrategyType:           RollingUpdate
+MinReadySeconds:        0
+RollingUpdateStrategy:  25% max unavailable, 25% max surge
+Pod Template:
+  Labels:       app=podinfo
+  Annotations:  prometheus.io/scrape: true
+  Containers:
+   podinfod:
+    Image:      stefanprodan/podinfo:2.0.0
+    Port:       9898/TCP
+    Host Port:  0/TCP
+    Limits:
+      cpu:     100m
+      memory:  256Mi
+    Requests:
+      cpu:        1m
+      memory:     32Mi
+    Liveness:     http-get http://:9898/healthz delay=1s timeout=1s period=3s #success=1 #failure=2
+    Readiness:    http-get http://:9898/readyz delay=1s timeout=1s period=2s #success=1 #failure=1
+    Environment:  <none>
+    Mounts:
+      /etc/podinfod/metadata from metadata (ro)
+  Volumes:
+   metadata:
+    Type:  DownwardAPI (a volume populated by information about the pod)
+    Items:
+      metadata.labels -> labels
+      metadata.annotations -> annotations
+Conditions:
+  Type           Status  Reason
+  ----           ------  ------
+  Progressing    True    NewReplicaSetAvailable
+  Available      True    MinimumReplicasAvailable
+OldReplicaSets:  <none>
+NewReplicaSet:   podinfo-6ff67f567b (7/7 replicas created)
+Events:
+  Type    Reason             Age    From                   Message
+  ----    ------             ----   ----                   -------
+  Normal  ScalingReplicaSet  7m36s  deployment-controller  Scaled up replica set podinfo-6ff67f567b to 2
+  Normal  ScalingReplicaSet  6m4s   deployment-controller  Scaled up replica set podinfo-6ff67f567b to 3
+  Normal  ScalingReplicaSet  4m19s  deployment-controller  Scaled up replica set podinfo-6ff67f567b to 4
+  Normal  ScalingReplicaSet  3m19s  deployment-controller  Scaled up replica set podinfo-6ff67f567b to 5
+  Normal  ScalingReplicaSet  78s    deployment-controller  Scaled up replica set podinfo-6ff67f567b to 7
+```
+
+
+
+清理
+
+```bash
+kubectl delete -f podinfo-hpa.yaml 
+kubectl delete -f podinfo.yaml
+```
+
+
+
+
+
+## Lab 3 使用 LimitRange 定义 pod 资源限额
+
+
+
+使用以下范例创建 limitrange 定义文件
+
+
+
+```bash
+nano limitrange.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: cpu-min-max-demo-lr
+  namespace: default
+spec:
+  limits: 
+  - type: Container
+    max: # 上限
+      cpu: "800m"
+      memory: 1Gi
+    default: # 默认的limits
+      cpu: "800m"
+      memory: "500Mi"
+    defaultRequest: # 默认的request
+      cpu: "500m"
+      memory: "500Mi"
+    min: # 下限
+      cpu: "200m"
+      memory: "500Mi" 
+  - type: PersistentVolumeClaim
+    max:
+      storage: 2Gi
+    min:
+      storage: 1Gi
+```
+
+
+
+创建 limitrange
+
+```bash
+kubectl apply -f limitrange.yaml
+```
+
+
+
+查看 limitrange
+
+```bash
+kubectl get limitrange
+```
+
+
+
+```bash
+kubectl describe limitrange cpu-min-max-demo-lr
+```
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl get limitrange
+NAME                  CREATED AT
+cpu-min-max-demo-lr   2022-12-22T08:18:22Z
+root@node1:~/k8slab/perfmon# kubectl describe limitrange cpu-min-max-demo-lr
+Name:                  cpu-min-max-demo-lr
+Namespace:             default
+Type                   Resource  Min    Max   Default Request  Default Limit  Max Limit/Request Ratio
+----                   --------  ---    ---   ---------------  -------------  -----------------------
+Container              memory    500Mi  1Gi   500Mi            500Mi          -
+Container              cpu       200m   800m  500m             800m           -
+PersistentVolumeClaim  storage   1Gi    2Gi   -                -              -
+```
+
+
+
+使用以下命令行创建 pod 用例
+
+```bash
+kubectl run lrpod1 --image=katacoda/docker-http-server
+```
+
+
+
+查看 pod
+
+```bash
+kubectl describe pod lrpod1
+```
+
+
+
+```bash
+    Limits:
+      cpu:     800m
+      memory:  500Mi
+    Requests:
+      cpu:        500m
+      memory:     500Mi
+```
+
+侧重观察 Limits 和 Requests 配置信息
+
+
+
+使用以下范例创建 pod
+
+```bash
+nano lrpod2.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: lrpod2
+  namespace: default
+spec:
+  containers:
+  - image: katacoda/docker-http-server
+    name: lrpod2
+    resources:
+      limits:
+        cpu: 800m
+        memory: 2Gi
+      requests:
+        cpu: 100m
+        memory: 500Mi
+```
+
+
+
+创建 pod
+
+```bash
+kubectl apply -f lrpod2.yaml 
+```
+
+
+
+此处应该有报错
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl apply -f lrpod2.yaml
+Error from server (Forbidden): error when creating "lrpod2.yaml": pods "lrpod2" is forbidden: [minimum cpu usage per Container is 200m, but request is 100m, maximum memory usage per Container is 1Gi, but limit is 2Gi]
+```
+
+
+
+修改 lrpod2.yaml
+
+```bash
+nano lrpod2.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: lrpod2
+  namespace: default
+spec:
+  containers:
+  - image: katacoda/docker-http-server
+    name: lrpod2
+    resources:
+      limits:
+        cpu: 800m
+        memory: 1Gi # 调整到内存上限以内
+      requests:
+        cpu: 400m # 调整到cpu下限之上
+        memory: 500Mi
+```
+
+
+
+再次创建 pod
+
+```bash
+kubectl apply -f lrpod2.yaml 
+```
+
+
+
+```bash
+kubectl describe pod lrpod2
+```
+
+
+
+```bash
+    Limits:
+      cpu:     800m
+      memory:  1Gi
+    Requests:
+      cpu:        400m
+      memory:     500Mi
+```
+
+侧重观察 `Limits` 和 `Requests` 配置信息
+
+
+
+
+
+## Lab 4  使用 ResourceQuota 定义资源使用配额
+
+
+
+使用以下范例创建 ResourceQuota 定义文件
+
+```bash
+nano resourcequota.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: mem-cpu-demo
+spec:
+  hard: # 强制约束
+    requests.cpu: "1"
+    requests.memory: 1Gi
+    limits.cpu: "2"
+    limits.memory: 2Gi
+```
+
+
+
+创建 resourcequota
+
+```bash
+kubectl apply -f resourcequota.yaml 
+```
+
+
+
+查看 resourcequota
+
+```bash
+kubectl get resourcequota
+```
+
+
+
+```bash
+kubectl describe resourcequota mem-cpu-demo  
+```
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl get resourcequota
+NAME           AGE   REQUEST                                             LIMIT
+mem-cpu-demo   8s    requests.cpu: 900m/1, requests.memory: 1000Mi/1Gi   limits.cpu: 1600m/2, limits.memory: 1524Mi/2Gi
+root@node1:~/k8slab/perfmon# kubectl describe resourcequota mem-cpu-demo
+Name:            mem-cpu-demo
+Namespace:       default
+Resource         Used    Hard
+--------         ----    ----
+limits.cpu       1600m   2
+limits.memory    1524Mi  2Gi
+requests.cpu     900m    1
+requests.memory  1000Mi  1Gi
+```
+
+重点关注 `Used`
+
+
+
+创建pod
+
+```bash
+kubectl run lrpod3 --image=katacoda/docker-http-server
+```
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl run lrpod3 --image=katacoda/docker-http-server
+Error from server (Forbidden): pods "lrpod3" is forbidden: exceeded quota: mem-cpu-demo, requested: limits.cpu=800m,requests.cpu=500m,requests.memory=500Mi, used: limits.cpu=1600m,requests.cpu=900m,requests.memory=1000Mi, limited: limits.cpu=2,requests.cpu=1,requests.memory=1Gi
+```
+
+观察到 `exceeded quota` 报错
+
+
+
+删除 lrpod1
+
+```bash
+kubectl delete pod lrpod1
+```
+
+
+
+再次查看 resourcequota
+
+```bash
+kubectl describe resourcequota mem-cpu-demo  
+```
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl describe resourcequota mem-cpu-demo
+Name:            mem-cpu-demo
+Namespace:       default
+Resource         Used   Hard
+--------         ----   ----
+limits.cpu       800m   2
+limits.memory    1Gi    2Gi
+requests.cpu     400m   1
+requests.memory  500Mi  1Gi
+```
+
+重点关注 `Used`
+
+
+
+创建 pod
+
+```bash
+kubectl run lrpod3 --image=katacoda/docker-http-server
+```
+
+
+
+```bash
+root@node1:~/k8slab/perfmon# kubectl run lrpod3 --image=katacoda/docker-http-server
+pod/lrpod3 created
+```
+
+正常创建
+
+
+
+清理
+
+```bash
+kubectl delete pod lrpod3
+kubectl delete pod lrpod2
+kubectl delete -f limitrange.yaml 
+kubectl delete -f resourcequota.yaml 
+```
+
+
+
+
+
+## Lab 5 安装 kubernetes-dashboard
+
+
+
+安装 helm
+
+```bash
+wget https://chengzhstor.blob.core.windows.net/k8slab/helm-v3.3.0-linux-amd64.tar.gz
+tar xf helm-v3.3.0-linux-amd64.tar.gz
+mv linux-amd64/helm /usr/bin/
+```
+
+
+
+查看 helm 版本
+
+```bash
+helm version
+```
+
+
+
+增加 repo
+
+```bash
+helm repo add incubator http://aliacs-k8s-cn-beijing.oss-cn-beijing.aliyuncs.com/app/charts-incubator
+```
+
+
+
+```bash
+root@node1:~# helm version
+version.BuildInfo{Version:"v3.3.0", GitCommit:"8a4aeec08d67a7b84472007529e8097ec3742105", GitTreeState:"dirty", GoVersion:"go1.14.7"}
+root@node1:~# helm repo add incubator http://aliacs-k8s-cn-beijing.oss-cn-beijing.aliyuncs.com/app/charts-incubator
+"incubator" has been added to your repositories
+```
+
+
+
+部署 dashboard
+
+```bash
+helm fetch incubator/kubernetes-dashboard
+tar xf kubernetes-dashboard-2.8.1.tgz
+cd kubernetes-dashboard
+```
+
+
+
+修改配置文件
+
+```bash
+nano values.yaml
+```
+
+
+
+使用 NodePort 
+
+
+
+```yaml
+service:
+  type: NodePort
+  externalPort: 443
+```
+
+
+
+安装 dashboard
+
+```bash
+helm install kubernetes-dashboard -n kube-system ./
+```
+
+
+
+```bash
+root@node1:~/kubernetes-dashboard# helm install kubernetes-dashboard -n kube-system ./
+NAME: kubernetes-dashboard
+LAST DEPLOYED: Thu Dec 22 16:36:28 2022
+NAMESPACE: kube-system
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+NOTES:
+*********************************************************************************
+*** PLEASE BE PATIENT: kubernetes-dashboard may take a few minutes to install ***
+*********************************************************************************
+
+Get the Kubernetes Dashboard URL by running:
+  export NODE_PORT=$(kubectl get -n kube-system -o jsonpath="{.spec.ports[0].nodePort}" services kubernetes-dashboard)
+  export NODE_IP=$(kubectl get nodes -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo https://$NODE_IP:$NODE_PORT/
+```
+
+
+
+按照提示运行最后三行内容
+
+```bash
+root@node1:~/kubernetes-dashboard#   export NODE_PORT=$(kubectl get -n kube-system -o jsonpath="{.spec.ports[0].nodePort}" services kubernetes-dashboard)
+root@node1:~/kubernetes-dashboard#   export NODE_IP=$(kubectl get nodes -o jsonpath="{.items[0].status.addresses[0].address}")
+root@node1:~/kubernetes-dashboard#   echo https://$NODE_IP:$NODE_PORT/
+https://192.168.1.231:30573/
+```
+
+记住此处的 URL 地址信息
+
+
+
+查看 pod
+
+```bash
+kubectl get pod -n kube-system | grep dashboard
+```
+
+
+
+```bash
+root@node1:~/kubernetes-dashboard# kubectl get pod -n kube-system | grep dashboard
+kubernetes-dashboard-687b7474-pbvmp       1/1     Running   0             3m14s
+```
+
+
+
+查看 svc
+
+```bash
+kubectl get svc -n kube-system  | grep dashboard
+```
+
+
+
+```bash
+root@node1:~/kubernetes-dashboard# kubectl get svc -n kube-system  | grep dashboard
+kubernetes-dashboard   NodePort    10.97.171.201   <none>        443:30573/TCP            3m59s
+```
+
+此处也可以观察到 dashboard 的端口号
+
+
+
+创建一个 sa
+
+```bash
+kubectl create sa -n kube-system chengzh
+```
+
+
+
+给 sa 赋权
+
+```bash
+kubectl create clusterrolebinding chengzh@kubernetes --serviceaccount=kube-system:chengzh --clusterrole=cluster-admin
+```
+
+
+
+查看该 sa
+
+```bash
+kubectl describe sa chengzh -n kube-system
+```
+
+
+
+```bash
+root@node1:~/kubernetes-dashboard# kubectl describe sa chengzh -n kube-system
+Name:                chengzh
+Namespace:           kube-system
+Labels:              <none>
+Annotations:         <none>
+Image pull secrets:  <none>
+Mountable secrets:   chengzh-token-cmbpb
+Tokens:              chengzh-token-cmbpb
+Events:              <none>
+```
+
+关注 token 的标识
+
+
+
+获取 token
+
+```bash
+kubectl describe secret chengzh-token-cmbpb -n kube-system
+```
+
+
+
+```bash
+root@node1:~/kubernetes-dashboard# kubectl describe sa chengzh -n kube-system
+Name:                chengzh
+Namespace:           kube-system
+Labels:              <none>
+Annotations:         <none>
+Image pull secrets:  <none>
+Mountable secrets:   chengzh-token-cmbpb
+Tokens:              chengzh-token-cmbpb
+Events:              <none>
+root@node1:~/kubernetes-dashboard# kubectl describe secret chengzh-token-cmbpb -n kube-system
+Name:         chengzh-token-cmbpb
+Namespace:    kube-system
+Labels:       <none>
+Annotations:  kubernetes.io/service-account.name: chengzh
+              kubernetes.io/service-account.uid: a80e2584-d0b5-4415-9c33-1689590cf324
+
+Type:  kubernetes.io/service-account-token
+
+Data
+====
+ca.crt:     1099 bytes
+namespace:  11 bytes
+token:      eyJ此处省略很多代码_Rk5Q
+```
+
+
+
+
+
+使用该 token 登录到 dashboard
+
+```bash
+https://192.168.1.231:30573/
+```
+
+
+
+![image-20221222164450726](README.assets/image-20221222164450726.png)
+
+
+
+
+
+![image-20221222164623744](README.assets/image-20221222164623744.png)
 
