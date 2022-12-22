@@ -7916,6 +7916,983 @@ kubectl delete -f .
 
 
 
+```bash
+root@node1:~/k8slab/schedule# pwd
+/root/k8slab/schedule
+```
+
+
+
+## Lab 1 labels 和 nodeSelector
+
+
+
+使用以下范例，创建实例文件
+
+```bash
+nano katacoda.yaml
+```
+
+
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: katacoda
+  name: katacoda
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: katacoda
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: katacoda
+    spec:
+      containers:
+      - image: katacoda/docker-http-server
+        name: docker-http-server
+        resources: {}
+```
+
+
+
+创建 deployment
+
+```bash
+kubectl apply -f katacoda.yaml 
+```
+
+
+
+观察pod
+
+```bash
+kubectl get pods -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/schedule# kubectl get pods -o wide
+NAME                        READY   STATUS              RESTARTS   AGE   IP             NODE    NOMINATED NODE   READINESS GATES
+katacoda-56dbd65b59-4w942   0/1     ContainerCreating   0          9s    <none>         node3   <none>           <none>
+katacoda-56dbd65b59-7qq8z   0/1     ContainerCreating   0          9s    <none>         node2   <none>           <none>
+katacoda-56dbd65b59-jmtm6   0/1     ContainerCreating   0          9s    <none>         node2   <none>           <none>
+nginx                       1/1     Running             0          26h   10.244.135.3   node3   <none>           <none
+```
+
+ master 节点不运行 katacoda 负载
+
+
+
+给node3打标签
+
+```bash
+kubectl label node node3 proxy=enable
+```
+
+
+
+观察pod
+
+```bash
+kubectl get pods -o wide
+```
+
+  
+
+```bash
+root@node1:~/k8slab/schedule# kubectl get pods -o wide
+NAME                        READY   STATUS    RESTARTS   AGE   IP              NODE    NOMINATED NODE   READINESS GATES
+katacoda-56dbd65b59-4w942   1/1     Running   0          89s   10.244.135.56   node3   <none>           <none>
+katacoda-56dbd65b59-7qq8z   1/1     Running   0          89s   10.244.104.31   node2   <none>           <none>
+katacoda-56dbd65b59-jmtm6   1/1     Running   0          89s   10.244.104.29   node2   <none>           <none>
+nginx                       1/1     Running   0          26h   10.244.135.3    node3   <none>           <none>
+```
+
+pod的状态没有变化
+
+
+
+使用以下范例，更新katacoda
+
+```bash
+nano katacoda3.yaml
+```
+
+
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: katacoda
+  name: katacoda
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: katacoda
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: katacoda
+    spec:
+      nodeSelector: # 根据标签匹配调度
+        proxy: enable
+      containers:
+      - image: katacoda/docker-http-server
+        name: docker-http-server
+        resources: {}
+```
+
+
+
+更新deployment
+
+```bash
+kubectl apply -f katacoda3.yaml
+```
+
+
+
+观察pod
+
+```bash
+kubectl get pods -o wide
+```
+
+ 
+
+```bash
+root@node1:~/k8slab/schedule# kubectl get pods -o wide
+NAME                        READY   STATUS    RESTARTS   AGE   IP              NODE    NOMINATED NODE   READINESS GATES
+katacoda-6f88f95457-244g6   1/1     Running   0          56s   10.244.135.57   node3   <none>           <none>
+katacoda-6f88f95457-76sfw   1/1     Running   0          38s   10.244.135.58   node3   <none>           <none>
+katacoda-6f88f95457-z6r7z   1/1     Running   0          21s   10.244.135.59   node3   <none>           <none>
+nginx                       1/1     Running   0          26h   10.244.135.3    node3   <none>           <none>
+```
+
+node2 节点上的pod被终止了，所有的负载被转到node3上
+
+
+
+查看node3节点详情
+
+```bash
+kubectl describe nodes node3
+```
+
+  
+
+```bash
+root@node1:~/k8slab/schedule# kubectl describe nodes node3
+Name:               node3
+Roles:              <none>
+Labels:             beta.kubernetes.io/arch=amd64
+                    beta.kubernetes.io/os=linux
+                    kubernetes.io/arch=amd64
+                    kubernetes.io/hostname=node3
+                    kubernetes.io/os=linux
+                    proxy=enable
+Annotations:        csi.volume.kubernetes.io/nodeid: {"nfs.csi.k8s.io":"node3"}
+                    kubeadm.alpha.kubernetes.io/cri-socket: /var/run/dockershim.sock
+                    node.alpha.kubernetes.io/ttl: 0
+                    projectcalico.org/IPv4Address: 192.168.1.233/24
+                    projectcalico.org/IPv4IPIPTunnelAddr: 10.244.135.0
+                    volumes.kubernetes.io/controller-managed-attach-detach: true
+CreationTimestamp:  Sat, 23 Apr 2022 10:58:48 +0800
+Taints:             <none>
+Unschedulable:      false
+```
+
+特别留意 labels 字段
+
+
+
+删除node3的标签
+
+```bash
+kubectl label node node3 proxy-
+```
+
+
+
+再次查看node3节点详情
+
+```bash
+kubectl describe nodes node3
+```
+
+ 
+
+```bash
+root@node1:~/k8slab/schedule# kubectl describe nodes node3
+Name:               node3
+Roles:              <none>
+Labels:             beta.kubernetes.io/arch=amd64
+                    beta.kubernetes.io/os=linux
+                    kubernetes.io/arch=amd64
+                    kubernetes.io/hostname=node3
+                    kubernetes.io/os=linux
+Annotations:        csi.volume.kubernetes.io/nodeid: {"nfs.csi.k8s.io":"node3"}
+                    kubeadm.alpha.kubernetes.io/cri-socket: /var/run/dockershim.sock
+                    node.alpha.kubernetes.io/ttl: 0
+                    projectcalico.org/IPv4Address: 192.168.1.233/24
+                    projectcalico.org/IPv4IPIPTunnelAddr: 10.244.135.0
+                    volumes.kubernetes.io/controller-managed-attach-detach: true
+CreationTimestamp:  Sat, 23 Apr 2022 10:58:48 +0800
+Taints:             <none>
+Unschedulable:      false
+```
+
+特别留意 labels 字段
+
+
+
+再次观察 pod
+
+```bash
+kubectl get pods -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/schedule# kubectl get pods -o wide
+NAME                        READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+katacoda-6f88f95457-244g6   1/1     Running   0          3m17s   10.244.135.57   node3   <none>           <none>
+katacoda-6f88f95457-76sfw   1/1     Running   0          2m59s   10.244.135.58   node3   <none>           <none>
+katacoda-6f88f95457-z6r7z   1/1     Running   0          2m42s   10.244.135.59   node3   <none>           <none>
+nginx                       1/1     Running   0          26h     10.244.135.3    node3   <none>           <none>
+```
+
+现有的 pod 还在，符合定义
+
+
+
+扩展katacoda的副本数量
+
+```bash
+kubectl scale deployment katacoda --replicas=4
+```
+
+
+
+再次观察 pod
+
+```bash
+kubectl get pods -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/schedule# kubectl get pods -o wide
+NAME                        READY   STATUS    RESTARTS   AGE     IP              NODE     NOMINATED NODE   READINESS GATES
+katacoda-6f88f95457-244g6   1/1     Running   0          3m58s   10.244.135.57   node3    <none>           <none>
+katacoda-6f88f95457-76sfw   1/1     Running   0          3m40s   10.244.135.58   node3    <none>           <none>
+katacoda-6f88f95457-ptcwx   0/1     Pending   0          8s      <none>          <none>   <none>           <none>
+katacoda-6f88f95457-z6r7z   1/1     Running   0          3m23s   10.244.135.59   node3    <none>           <none>
+nginx                       1/1     Running   0          26h     10.244.135.3    node3    <none>           <none>
+```
+
+ 现有的 pod 还在，但是新增的 pod 始终处于 pending 状态
+
+
+
+查看pending的pod
+
+```bash
+kubectl describe pod katacoda-6f88f95457-ptcwx
+```
+
+ 
+
+```bash
+Events:
+  Type     Reason            Age   From               Message
+  ----     ------            ----  ----               -------
+  Warning  FailedScheduling  92s   default-scheduler  0/3 nodes are available: 1 node(s) had taint {node-role.kubernetes.io/master: }, that the pod didn't tolerate, 2 node(s) didn't match Pod's node affinity/selector.
+  Warning  FailedScheduling  10s   default-scheduler  0/3 nodes are available: 1 node(s) had taint {node-role.kubernetes.io/master: }, that the pod didn't tolerate, 2 node(s) didn't match Pod's node affinity/selector.
+```
+
+显示目前没有可用的 node `"2 node(s) didn't match Pod's node affinity/selector"`
+
+
+
+清理deployment
+
+```bash
+kubectl delete -f katacoda3.yaml 
+```
+
+
+
+## Lab 2 taint 和 tolerations
+
+
+
+再次运行 deployment
+
+```bash
+kubectl apply -f katacoda.yaml 
+```
+
+
+
+查看 pod 列表
+
+```bash
+kubectl get pod -o wide
+```
+
+
+
+```
+root@node1:~/k8slab/schedule# kubectl get pod -o wide
+NAME                        READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+katacoda-56dbd65b59-89cs9   1/1     Running   0          3m19s   10.244.104.32   node2   <none>           <none>
+katacoda-56dbd65b59-bhjsm   1/1     Running   0          3m19s   10.244.104.30   node2   <none>           <none>
+katacoda-56dbd65b59-w4tls   1/1     Running   0          3m19s   10.244.135.60   node3   <none>           <none>
+nginx                       1/1     Running   0          26h     10.244.135.3    node3   <none>          <none>
+```
+
+ 找到当前负载较高的节点，比如 node3
+
+
+
+给 node3 打污点
+
+```bash
+kubectl taint node node3 aa=bb:NoExecute
+```
+
+
+
+查看节点taints
+
+```bash
+kubectl describe node node3
+```
+
+
+
+```bash
+root@node1:~/k8slab/schedule# kubectl describe node node3
+Name:               node3
+Roles:              <none>
+Labels:             beta.kubernetes.io/arch=amd64
+                    beta.kubernetes.io/os=linux
+                    kubernetes.io/arch=amd64
+                    kubernetes.io/hostname=node3
+                    kubernetes.io/os=linux
+Annotations:        csi.volume.kubernetes.io/nodeid: {"nfs.csi.k8s.io":"node3"}
+                    kubeadm.alpha.kubernetes.io/cri-socket: /var/run/dockershim.sock
+                    node.alpha.kubernetes.io/ttl: 0
+                    projectcalico.org/IPv4Address: 192.168.1.233/24
+                    projectcalico.org/IPv4IPIPTunnelAddr: 10.244.135.0
+                    volumes.kubernetes.io/controller-managed-attach-detach: true
+CreationTimestamp:  Sat, 23 Apr 2022 10:58:48 +0800
+Taints:             aa=bb:NoExecute
+Unschedulable:      false
+```
+
+
+
+查看pod列表
+
+```bash
+kubectl get pod -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/schedule# kubectl get pod -o wide
+NAME                        READY   STATUS    RESTARTS   AGE   IP              NODE    NOMINATED NODE   READINESS GATES
+katacoda-56dbd65b59-89cs9   1/1     Running   0          5m    10.244.104.32   node2   <none>           <none>
+katacoda-56dbd65b59-bhjsm   1/1     Running   0          5m    10.244.104.30   node2   <none>           <none>
+katacoda-56dbd65b59-nlzdq   1/1     Running   0          58s   10.244.104.35   node2   <none>           <none>
+```
+
+ 可以看到3个pod全部运行在另一个节点
+
+
+
+使用以下范例，增加容忍，更新deployment，
+
+```bash
+nano katacoda2.yaml
+```
+
+
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: katacoda
+  name: katacoda
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: katacoda
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: katacoda
+    spec:
+      tolerations:  #增加容忍
+      - key: "aa"
+        operator: "Equal"
+        value: "bb"
+        effect: "NoExecute"
+      containers:
+      - image: katacoda/docker-http-server
+        name: docker-http-server
+        resources: {}
+```
+
+
+
+更新配置
+
+```bash
+kubectl apply -f katacoda2.yaml
+```
+
+
+
+查看 pod 列表，确认 pod 在 node3 节点上重建
+
+```bash
+kubectl get pods -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/schedule# kubectl get pods -o wide
+NAME                        READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+katacoda-7fc9f5499d-8qb8g   1/1     Running   0          3m54s   10.244.135.61   node3   <none>           <none>
+katacoda-7fc9f5499d-p2hzc   1/1     Running   0          3m20s   10.244.135.62   node3   <none>           <none>
+katacoda-7fc9f5499d-vv8gn   1/1     Running   0          3m37s   10.244.104.33   node2   <none>           <none>
+```
+
+
+
+删除现有污点
+
+```bash
+kubectl taint node node3 aa-
+```
+
+
+
+查看pod列表
+
+```bash
+kubectl get pods -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/schedule# kubectl get pods -o wide
+NAME                        READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+katacoda-7fc9f5499d-8qb8g   1/1     Running   0          4m39s   10.244.135.61   node3   <none>           <none>
+katacoda-7fc9f5499d-p2hzc   1/1     Running   0          4m5s    10.244.135.62   node3   <none>           <none>
+katacoda-7fc9f5499d-vv8gn   1/1     Running   0          4m22s   10.244.104.33   node2   <none>           <none>
+```
+
+
+
+## Lab 3  drain 和 uncordon
+
+尝试清空node2
+
+```bash
+kubectl drain node2
+```
+
+  
+
+```bash
+root@node1:~/k8slab/schedule# kubectl drain node2
+node/node2 already cordoned
+error: unable to drain node "node2" due to error:cannot delete DaemonSet-managed Pods (use --ignore-daemonsets to ignore): kube-system/calico-node-57snh, kube-system/kube-proxy-qkfvc, continuing command...
+There are pending nodes to be drained:
+ node2
+cannot delete DaemonSet-managed Pods (use --ignore-daemonsets to ignore): kube-system/calico-node-57snh, kube-system/kube-proxy-qkfvc
+```
+
+查看报错
+
+
+
+清空node2 
+
+```bash
+kubectl drain node2  --ignore-daemonsets
+```
+
+
+
+```bash
+root@node1:~/k8slab/schedule# kubectl drain node2  --ignore-daemonsets
+node/node2 already cordoned
+WARNING: ignoring DaemonSet-managed Pods: kube-system/calico-node-57snh, kube-system/kube-proxy-qkfvc
+evicting pod ingress-nginx/ingress-nginx-controller-76d86f9848-9klzx
+evicting pod default/katacoda-7fc9f5499d-vv8gn
+evicting pod ingress-nginx/ingress-nginx-admission-create-2clxv
+pod/ingress-nginx-admission-create-2clxv evicted
+pod/katacoda-7fc9f5499d-vv8gn evicted
+pod/ingress-nginx-controller-76d86f9848-9klzx evicted
+node/node2 drained
+```
+
+
+
+查看节点信息
+
+```bash
+kubectl get node -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/schedule# kubectl get node -o wide
+NAME    STATUS                     ROLES                  AGE    VERSION   INTERNAL-IP     EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+node1   Ready                      control-plane,master   243d   v1.23.0   192.168.1.231   <none>        Ubuntu 20.04.4 LTS   5.4.0-107-generic   docker://20.10.14
+node2   Ready,SchedulingDisabled   <none>                 243d   v1.23.0   192.168.1.232   <none>        Ubuntu 20.04.4 LTS   5.4.0-107-generic   docker://20.10.14
+node3   Ready                      <none>                 243d   v1.23.0   192.168.1.233   <none>        Ubuntu 20.04.4 LTS   5.4.0-107-generic   docker://20.10.14
+```
+
+  node2 的 status `Ready,SchedulingDisabled`
+
+
+
+查看pod列表
+
+```bash
+kubectl get pods -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/schedule# kubectl get pods -o wide
+NAME                        READY   STATUS    RESTARTS   AGE    IP              NODE    NOMINATED NODE   READINESS GATES
+katacoda-7fc9f5499d-8qb8g   1/1     Running   0          14m    10.244.135.61   node3   <none>           <none>
+katacoda-7fc9f5499d-p2c6b   1/1     Running   0          117s   10.244.135.63   node3   <none>           <none>
+katacoda-7fc9f5499d-p2hzc   1/1     Running   0          13m    10.244.135.62   node3   <none>           <none>
+```
+
+  pod全部被迁移到node3
+
+
+
+扩展katacoda副本数
+
+```bash
+kubectl scale deployment katacoda --replicas=6
+```
+
+
+
+查看pod列表
+
+```bash
+kubectl get pods -o wide
+```
+
+  
+
+```bash
+root@node1:~/k8slab/schedule# kubectl get pods -o wide
+NAME                        READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+katacoda-7fc9f5499d-692v4   1/1     Running   0          110s    10.244.135.1    node3   <none>           <none>
+katacoda-7fc9f5499d-7n4z7   1/1     Running   0          110s    10.244.135.4    node3   <none>           <none>
+katacoda-7fc9f5499d-8qb8g   1/1     Running   0          16m     10.244.135.61   node3   <none>           <none>
+katacoda-7fc9f5499d-hjsvq   1/1     Running   0          110s    10.244.135.2    node3   <none>           <none>
+katacoda-7fc9f5499d-p2c6b   1/1     Running   0          4m28s   10.244.135.63   node3   <none>           <none>
+katacoda-7fc9f5499d-p2hzc   1/1     Running   0          16m     10.244.135.62   node3   <none>           <none>
+```
+
+新增负载全在 node3 上
+
+
+
+恢复 node2 可调度
+
+```bash
+kubectl uncordon node2
+```
+
+
+
+扩展 katacoda 副本数
+
+```bash
+kubectl scale deployment katacoda --replicas=8
+```
+
+
+
+查看 pod 列表
+
+```bash
+kubectl get pods -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/schedule# kubectl get pods -o wide
+NAME                        READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+katacoda-7fc9f5499d-692v4   1/1     Running   0          3m36s   10.244.135.1    node3   <none>           <none>
+katacoda-7fc9f5499d-7n4z7   1/1     Running   0          3m36s   10.244.135.4    node3   <none>           <none>
+katacoda-7fc9f5499d-87dvp   1/1     Running   0          66s     10.244.104.38   node2   <none>           <none>
+katacoda-7fc9f5499d-8qb8g   1/1     Running   0          18m     10.244.135.61   node3   <none>           <none>
+katacoda-7fc9f5499d-hjsvq   1/1     Running   0          3m36s   10.244.135.2    node3   <none>           <none>
+katacoda-7fc9f5499d-p2c6b   1/1     Running   0          6m14s   10.244.135.63   node3   <none>           <none>
+katacoda-7fc9f5499d-p2hzc   1/1     Running   0          18m     10.244.135.62   node3   <none>           <none>
+katacoda-7fc9f5499d-wn8mk   1/1     Running   0          66s     10.244.104.34   node2   <none>           <none>
+```
+
+  新增 pod 会调度到 node2 上
+
+
+
+收缩 katacoda 副本数
+
+```bash
+kubectl scale deployment katacoda --replicas=4
+```
+
+
+
+查看 pod 列表
+
+```bash
+kubectl get pods -o wide
+```
+
+ 
+
+```bash
+root@node1:~/k8slab/schedule# kubectl get pods -o wide
+NAME                        READY   STATUS    RESTARTS   AGE   IP              NODE    NOMINATED NODE   READINESS GATES
+katacoda-7fc9f5499d-87dvp   1/1     Running   0          98s   10.244.104.38   node2   <none>           <none>
+katacoda-7fc9f5499d-8qb8g   1/1     Running   0          19m   10.244.135.61   node3   <none>           <none>
+katacoda-7fc9f5499d-p2hzc   1/1     Running   0          18m   10.244.135.62   node3   <none>           <none>
+katacoda-7fc9f5499d-wn8mk   1/1     Running   0          98s   10.244.104.34   node2   <none>           <none>
+```
+
+实现 node 的负载平衡了
+
+
+
+清理 deployment
+
+```bash
+kubectl delete -f katacoda2.yaml
+```
+
+
+
+
+
+## Lab 4 使 master 能够承载工作负载
+
+查看 master taints
+
+```bash
+kubectl describe node node1
+```
+
+
+
+```bash
+root@node1:~/k8slab/schedule# kubectl describe node node1
+Name:               node1
+Roles:              control-plane,master
+Labels:             beta.kubernetes.io/arch=amd64
+                    beta.kubernetes.io/os=linux
+                    kubernetes.io/arch=amd64
+                    kubernetes.io/hostname=node1
+                    kubernetes.io/os=linux
+                    node-role.kubernetes.io/control-plane=
+                    node-role.kubernetes.io/master=
+                    node.kubernetes.io/exclude-from-external-load-balancers=
+Annotations:        kubeadm.alpha.kubernetes.io/cri-socket: /var/run/dockershim.sock
+                    node.alpha.kubernetes.io/ttl: 0
+                    projectcalico.org/IPv4Address: 192.168.1.231/24
+                    projectcalico.org/IPv4IPIPTunnelAddr: 10.244.166.128
+                    volumes.kubernetes.io/controller-managed-attach-detach: true
+CreationTimestamp:  Sat, 23 Apr 2022 10:51:43 +0800
+Taints:             node-role.kubernetes.io/master:NoSchedule
+Unschedulable:      false
+```
+
+特别留意 node-role.kubernetes.io/master
+
+
+
+删除 master 污点，使其能承载工作负载
+
+```bash
+kubectl taint node node1 node-role.kubernetes.io/master-
+```
+
+
+
+```bash
+root@node1:~/k8slab/schedule# kubectl taint node node1 node-role.kubernetes.io/master-
+node/node1 untainted
+```
+
+
+
+运行 deployment
+
+```bash
+kubectl apply -f katacoda.yaml
+```
+
+
+
+查看 pod 列表，确认 pod 运行在三个节点上
+
+```bash
+kubectl get pods -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/schedule# kubectl get pods -o wide
+NAME                        READY   STATUS    RESTARTS   AGE   IP               NODE    NOMINATED NODE   READINESS GATES
+katacoda-56dbd65b59-7ml5v   1/1     Running   0          18s   10.244.135.6     node3   <none>           <none>
+katacoda-56dbd65b59-ccwvd   1/1     Running   0          18s   10.244.166.135   node1   <none>           <none>
+katacoda-56dbd65b59-cg9b2   1/1     Running   0          18s   10.244.104.36    node2   <none>           <none>
+```
+
+
+
+清理 deployment
+
+```bash
+kubectl delete -f katacoda.yaml 
+```
+
+
+
+使用以下范例创建 deamonsets
+
+```bash
+nano katacoda-daemonsets.yaml
+```
+
+
+
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app: katacoda-daemonsets
+  name: katacoda-daemonsets
+spec:
+  selector:
+    matchLabels:
+      app: katacoda-daemonsets
+  template:
+    metadata:
+      labels:
+        app: katacoda-daemonsets
+    spec:
+      containers:
+      - image: katacoda/docker-http-server
+        name: docker-http-server
+        resources: {}
+```
+
+
+
+运行 daemonset
+
+```bash
+kubectl apply -f katacoda-daemonsets.yaml 
+```
+
+
+
+查看 pod 列表
+
+```bash
+kubectl get pod -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/schedule# kubectl get pod -o wide
+NAME                        READY   STATUS    RESTARTS   AGE   IP               NODE    NOMINATED NODE   READINESS GATES
+katacoda-daemonsets-4xvng   1/1     Running   0          55s   10.244.135.5     node3   <none>           <none>
+katacoda-daemonsets-cdq7h   1/1     Running   0          55s   10.244.104.37    node2   <none>           <none>
+katacoda-daemonsets-mdjr5   1/1     Running   0          55s   10.244.166.136   node1   <none>           <none>
+```
+
+
+
+清理 daemonset
+
+```bash
+kubectl delete -f katacoda-daemonsets.yaml 
+```
+
+
+
+查看 pod 列表
+
+```bash
+kubectl get pod -o wide
+```
+
+ 曲终人散
+
+
+
+恢复 master 的 taint
+
+```bash
+kubectl taint node node1 node-role.kubernetes.io/master:NoSchedule
+```
+
+
+
+再次运行 daemonset
+
+```bash
+kubectl apply -f katacoda-daemonsets.yaml 
+```
+
+
+
+查看pod列表
+
+```bash
+kubectl get pod -o wide
+```
+
+
+
+``` bash
+root@node1:~/k8slab/schedule# kubectl get pod -o wide
+NAME                        READY   STATUS    RESTARTS   AGE   IP              NODE    NOMINATED NODE   READINESS GATES
+katacoda-daemonsets-pkx9w   1/1     Running   0          35s   10.244.104.40   node2   <none>           <none>
+katacoda-daemonsets-q85wj   1/1     Running   0          35s   10.244.135.9    node3   <none>           <none>
+```
+
+ node1 上没有 deamonsets pod
+
+
+
+## Lab 5 部署能够运行在master上的daemonset
+
+使用以下范例，增加针对master的容忍，更新deployment，
+
+```bash
+nano katacoda-daemonsets2.yaml 
+```
+
+
+
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app: katacoda-daemonsets
+  name: katacoda-daemonsets
+spec:
+  selector:
+    matchLabels:
+      app: katacoda-daemonsets
+  template:
+    metadata:
+      labels:
+        app: katacoda-daemonsets
+    spec:
+      containers:
+      - image: katacoda/docker-http-server
+        name: docker-http-server
+        resources: {}
+      tolerations: # 增加针对master的容忍
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+```
+
+
+
+创建deployment
+
+```bash
+kubectl apply -f katacoda-daemonsets2.yaml
+```
+
+
+
+观察pod分布
+
+```bash
+kubectl get pod -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/schedule# kubectl get pod -o wide
+NAME                        READY   STATUS        RESTARTS   AGE     IP               NODE    NOMINATED NODE   READINESS GATES
+katacoda-daemonsets-pkx9w   1/1     Terminating   0          3m15s   10.244.104.40    node2   <none>           <none>
+katacoda-daemonsets-q85wj   1/1     Running       0          3m15s   10.244.135.9     node3   <none>           <none>
+katacoda-daemonsets-vkrpj   1/1     Running       0          18s     10.244.166.137   node1   <none>           <none>
+```
+
+
+
+清理daemonset
+
+```bash
+kubectl delete -f katacoda-daemonsets2.yaml 
+```
+
+
+
+## 备注：
+
+删除所有master污点，使其能承载工作负载
+
+```bash
+kubectl taint nodes --all node-role.kubernetes.io/master-
+```
+
+
+
 # 验证和授权
 
 
