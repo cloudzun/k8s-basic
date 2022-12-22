@@ -8897,6 +8897,786 @@ kubectl taint nodes --all node-role.kubernetes.io/master-
 
 
 
+## Lab 0 查看 Kubernetes 证书目录
+
+
+
+查看 master 的证书
+
+```bash
+cd /etc/kubernetes/pki/
+```
+
+
+
+```bash
+ls
+```
+
+
+
+```bash
+root@node1:/etc/kubernetes/pki# ls
+apiserver.crt              apiserver.key                 ca.crt  front-proxy-ca.crt      front-proxy-client.key
+apiserver-etcd-client.crt  apiserver-kubelet-client.crt  ca.key  front-proxy-ca.key      sa.key
+apiserver-etcd-client.key  apiserver-kubelet-client.key  etcd    front-proxy-client.crt  sa.pub
+```
+
+`ca.crt` 是 ca 的自签名证书，ca.key `是验证` key，其他各个组件分别持有的 crt 和 key 也在这个目录中
+
+
+
+查看ca.crt
+
+```bash
+cat /etc/kubernetes/pki/ca.crt
+```
+
+
+
+对ca.crt进行base64转码
+
+```bash
+cat /etc/kubernetes/pki/ca.crt | base64 -w0
+```
+
+
+
+```
+root@node1:/etc/kubernetes/pki# cat /etc/kubernetes/pki/ca.crt
+-----BEGIN CERTIFICATE-----
+MIIC/jCCAeagAwIBAgIBADANBgkqhkiG9w0BAQsFADAVMRMwEQYDVQQDEwprdWJl
+cm5ldGVzMB4XDTIyMDQyMzAyNTEzNloXDTMyMDQyMDAyNTEzNlowFTETMBEGA1UE
+AxMKa3ViZXJuZXRlczCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKdW
+tIx5Yeor5fRpRS2svoJxal41wLvbmT9kZQX0cvDAQM7ixPcoXMoJ8Xs2Gs0NOI9L
+80vzN0OcLBeFyR9L9ecwuceBDgp8aH//XMKQTqd2dHLm5mmTVxv20CQ/bBkxDoEH
+2W0g2k8nM3w18opL/61lz7BhG6cfnhS1HBCDzec0ADBoIgGLfGo+Mucbqjwrz4VM
+t0u6jq7yrdcezl26o5DivkLdUibGptPCwMJidWxZqZib7l9inhWy07nGn1QfL+db
+qK8iEjKuA5uu7SK4wnL18rX9YiluZbtbxIsBi2wyF4BFf1Qk4SQHGDd47OPkBC0Y
+LGeEMeeGqXsfUxXy7rECAwEAAaNZMFcwDgYDVR0PAQH/BAQDAgKkMA8GA1UdEwEB
+/wQFMAMBAf8wHQYDVR0OBBYEFNvCXszgUkCu3GSNL9km3OisBvOIMBUGA1UdEQQO
+MAyCCmt1YmVybmV0ZXMwDQYJKoZIhvcNAQELBQADggEBAFS95f54T39Dyqi4SsP/
++ARIH4uaMj7YhGTL6mDVhaZfstbuEpnl3gHR2WjivslIqeMLDVYJsYw7NdbZ9OyH
+fQhEGtlpPGS5i+cJJ62xit1Q6ld4uzOFYjFTkGMtJu5MkxYlyGIsdm6XHfOej5S7
+8DXZFBdbsHdVP8KQatTRFlI6Pgp/qvSmQYHKTPmBgnNKbVo1L3sPhIXVHMKXizgY
+LShkd9ytJVloKVIjn/Wr3fBoveLAabbdupJYAzWei2ZUcWsATsuRYjgm6sFpPGmu
+kur17u1AInidu1UTjPGobUPh61VZY5C4VA5lVDu45CIiB/uvycdyXmdjSq+8YSHG
+vOI=
+-----END CERTIFICATE-----
+root@node1:/etc/kubernetes/pki# cat /etc/kubernetes/pki/ca.crt | base64 -w0
+LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUMvakNDQWVhZ0F3SUJBZ0lCQURBTkJna3Foa2lHOXcwQkFRc0ZBREFWTVJNd0VRWURWUVFERXdwcmRXSmwKY201bGRHVnpNQjRYRFRJeU1EUXlNekF5TlRFek5sb1hEVE15TURReU1EQXlOVEV6Tmxvd0ZURVRNQkVHQTFVRQpBeE1LYTNWaVpYSnVaWFJsY3pDQ0FTSXdEUVlKS29aSWh2Y05BUUVCQlFBRGdnRVBBRENDQVFvQ2dnRUJBS2RXCnRJeDVZZW9yNWZScFJTMnN2b0p4YWw0MXdMdmJtVDlrWlFYMGN2REFRTTdpeFBjb1hNb0o4WHMyR3MwTk9JOUwKODB2ek4wT2NMQmVGeVI5TDllY3d1Y2VCRGdwOGFILy9YTUtRVHFkMmRITG01bW1UVnh2MjBDUS9iQmt4RG9FSAoyVzBnMms4bk0zdzE4b3BMLzYxbHo3QmhHNmNmbmhTMUhCQ0R6ZWMwQURCb0lnR0xmR28rTXVjYnFqd3J6NFZNCnQwdTZqcTd5cmRjZXpsMjZvNURpdmtMZFVpYkdwdFBDd01KaWRXeFpxWmliN2w5aW5oV3kwN25HbjFRZkwrZGIKcUs4aUVqS3VBNXV1N1NLNHduTDE4clg5WWlsdVpidGJ4SXNCaTJ3eUY0QkZmMVFrNFNRSEdEZDQ3T1BrQkMwWQpMR2VFTWVlR3FYc2ZVeFh5N3JFQ0F3RUFBYU5aTUZjd0RnWURWUjBQQVFIL0JBUURBZ0trTUE4R0ExVWRFd0VCCi93UUZNQU1CQWY4d0hRWURWUjBPQkJZRUZOdkNYc3pnVWtDdTNHU05MOWttM09pc0J2T0lNQlVHQTFVZEVRUU8KTUF5Q0NtdDFZbVZ5Ym1WMFpYTXdEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBRlM5NWY1NFQzOUR5cWk0U3NQLworQVJJSDR1YU1qN1loR1RMNm1EVmhhWmZzdGJ1RXBubDNnSFIyV2ppdnNsSXFlTUxEVllKc1l3N05kYlo5T3lICmZRaEVHdGxwUEdTNWkrY0pKNjJ4aXQxUTZsZDR1ek9GWWpGVGtHTXRKdTVNa3hZbHlHSXNkbTZYSGZPZWo1UzcKOERYWkZCZGJzSGRWUDhLUWF0VFJGbEk2UGdwL3F2U21RWUhLVFBtQmduTktiVm8xTDNzUGhJWFZITUtYaXpnWQpMU2hrZDl5dEpWbG9LVklqbi9XcjNmQm92ZUxBYWJiZHVwSllBeldlaTJaVWNXc0FUc3VSWWpnbTZzRnBQR211Cmt1cjE3dTFBSW5pZHUxVVRqUEdvYlVQaDYxVlpZNUM0
+VkE1bFZEdTQ1Q0lpQi91dnljZHlYbWRqU3ErOFlTSEcKdk9JPQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+```
+
+对比一下两部分的显示
+
+
+
+查看etcd证书
+
+```bash
+cd etcd/
+ls
+```
+
+
+
+```bash
+root@node1:/etc/kubernetes/pki/etcd# ls
+ca.crt  ca.key  healthcheck-client.crt  healthcheck-client.key  peer.crt  peer.key  server.crt  server.key
+```
+
+此处存放的是etcd和其他各个组件进行通讯用的证书
+
+
+
+查看admin.conf 认证文件架构
+
+```bash
+cat /etc/kubernetes/admin.conf 
+```
+
+特别关注证书验证数据certificate-authority-data部分，和之前解码的ca.crt进行对比
+
+
+
+
+
+## Lab 1 生成用户证书及配置文件
+
+
+
+切换目录
+
+```bash
+cd /root/.kube/
+```
+
+
+
+生成用户key
+
+```bash
+openssl genrsa -out train.key 2048
+```
+
+
+
+基于key生成csr
+
+```bash
+openssl req -new -key train.key -out train.csr -subj "/CN=train/O=cloudzun"
+```
+
+
+
+向ca提交csr生成证书
+
+```bash
+openssl x509 -req -in train.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out train.crt -days 500
+```
+
+
+
+查看证书和key文件
+
+```bash
+ls
+```
+
+
+
+```bash
+root@node1:/etc/kubernetes/pki/etcd# cd /root/.kube/
+root@node1:~/.kube# cd /root/.kube/
+root@node1:~/.kube# openssl genrsa -out train.key 2048
+Generating RSA private key, 2048 bit long modulus (2 primes)
+.......................................................................+++++
+.............................................+++++
+e is 65537 (0x010001)
+root@node1:~/.kube# openssl req -new -key train.key -out train.csr -subj "/CN=train/O=cloudzun"
+root@node1:~/.kube# openssl x509 -req -in train.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out train.crt -days 500
+Signature ok
+subject=CN = train, O = cloudzun
+Getting CA Private Key
+root@node1:~/.kube# ls
+cache  config  train.crt  train.csr  train.key
+```
+
+
+
+备份
+
+```bash
+cp config config.20210204
+```
+
+
+
+使用命令行创建配置文件
+
+```bash
+kubectl config set-credentials train --client-certificate=train.crt  --client-key=train.key
+```
+
+
+
+查看config文件
+
+```bash
+nano config
+```
+
+确认train的证书和密钥都被填充进来
+
+
+
+设置上下文
+
+```bash
+kubectl config set-context train@kubernetes --cluster=kubernetes --user=train
+```
+
+
+
+查看config文件
+
+```bash
+nano config
+```
+
+确认train的上下文被填充进来
+
+
+
+查看当前上下文
+
+```bash
+kubectl config current-context
+```
+
+
+
+查看所有上下文
+
+```bash
+kubectl config get-contexts
+```
+
+
+
+```bash
+root@node1:~/.kube# kubectl config get-contexts
+CURRENT   NAME                          CLUSTER      AUTHINFO           NAMESPACE
+*         kubernetes-admin@kubernetes   kubernetes   kubernetes-admin
+          train@kubernetes              kubernetes   train
+```
+
+有星标的是当前上下文
+
+
+
+查看config命令行帮助
+
+```bash
+kubectl config --help
+```
+
+
+
+```bash
+root@node1:~/.kube# kubectl config --help
+Modify kubeconfig files using subcommands like "kubectl config set current-context my-context"
+
+ The loading order follows these rules:
+
+  1.  If the --kubeconfig flag is set, then only that file is loaded. The flag may only be set once and no merging takes
+place.
+  2.  If $KUBECONFIG environment variable is set, then it is used as a list of paths (normal path delimiting rules for
+your system). These paths are merged. When a value is modified, it is modified in the file that defines the stanza. When
+a value is created, it is created in the first file that exists. If no files in the chain exist, then it creates the
+last file in the list.
+  3.  Otherwise, ${HOME}/.kube/config is used and no merging takes place.
+
+Available Commands:
+  current-context Display the current-context
+  delete-cluster  Delete the specified cluster from the kubeconfig
+  delete-context  Delete the specified context from the kubeconfig
+  delete-user     Delete the specified user from the kubeconfig
+  get-clusters    Display clusters defined in the kubeconfig
+  get-contexts    Describe one or many contexts
+  get-users       Display users defined in the kubeconfig
+  rename-context  Rename a context from the kubeconfig file
+  set             Set an individual value in a kubeconfig file
+  set-cluster     Set a cluster entry in kubeconfig
+  set-context     Set a context entry in kubeconfig
+  set-credentials Set a user entry in kubeconfig
+  unset           Unset an individual value in a kubeconfig file
+  use-context     Set the current-context in a kubeconfig file
+  view            Display merged kubeconfig settings or a specified kubeconfig file
+
+Usage:
+  kubectl config SUBCOMMAND [options]
+
+Use "kubectl <command> --help" for more information about a given command.
+Use "kubectl options" for a list of global command-line options (applies to all commands).
+```
+
+可以看到有删除重命名上下文的命令
+
+
+
+切换上下文
+
+```bash
+kubectl config use-context train@kubernetes 
+```
+
+
+
+在当前上下文中尝试执行一些命令行操作
+
+```bash
+kubectl get pods
+```
+
+
+
+```bash
+kubectl explain pods
+```
+
+
+
+```bash
+root@node1:~/.kube# kubectl config use-context train@kubernetes
+Switched to context "train@kubernetes".
+root@node1:~/.kube# kubectl get pods
+Error from server (Forbidden): pods is forbidden: User "train" cannot list resource "pods" in API group "" in the namespace "default"
+root@node1:~/.kube# kubectl explain pods
+KIND:     Pod
+VERSION:  v1
+
+DESCRIPTION:
+     Pod is a collection of containers that can run on a host. This resource is
+     created by clients and scheduled onto hosts.
+
+FIELDS:
+   apiVersion   <string>
+     APIVersion defines the versioned schema of this representation of an
+     object. Servers should convert recognized schemas to the latest internal
+     value, and may reject unrecognized values. More info:
+     https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+
+   kind <string>
+     Kind is a string value representing the REST resource this object
+     represents. Servers may infer this from the endpoint the client submits
+     requests to. Cannot be updated. In CamelCase. More info:
+     https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+
+   metadata     <Object>
+     Standard object's metadata. More info:
+     https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+
+   spec <Object>
+     Specification of the desired behavior of the pod. More info:
+     https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
+
+   status       <Object>
+     Most recently observed status of the pod. This data may not be up to date.
+     Populated by the system. Read-only. More info:
+     https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
+```
+
+
+
+如果遇到报错，可能需要复制.crt和.key文件到 /root/.kube/
+
+
+
+切换回上下文
+
+```bash
+kubectl config use-context kubernetes-admin@kubernetes
+```
+
+
+
+
+
+## Lab 2 创建 sa
+
+
+
+创建 lab 命名空间
+
+```bash
+kubectl create namespace lab
+```
+
+
+
+创建 sa
+
+```bash
+kubectl -n lab create serviceaccount lab-sa
+```
+
+
+
+定义 token 变量
+
+```bash
+TOKENNAME=`kubectl -n lab get serviceaccount/lab-sa -o jsonpath='{.secrets[0].name}'`
+```
+
+
+
+转码 token
+
+```bash
+TOKEN=`kubectl -n lab get secret $TOKENNAME -o jsonpath='{.data.token}'| base64 --decode`
+```
+
+
+
+更新认证文件，增加 sa 的 token
+
+```bash
+kubectl config set-credentials lab-sa --token=$TOKEN
+```
+
+
+
+更新认证文件，增加sa的上下文
+
+```bash
+kubectl config set-context lab-sa@kubernetes --cluster=kubernetes --user=lab-sa
+```
+
+
+
+查看所有上下文
+
+```bash
+kubectl config get-contexts
+```
+
+
+
+```bash
+root@node1:~/.kube# nano config
+root@node1:~/.kube# kubectl config get-contexts
+CURRENT   NAME                          CLUSTER      AUTHINFO           NAMESPACE
+*         kubernetes-admin@kubernetes   kubernetes   kubernetes-admin
+          lab-sa@kubernetes             kubernetes   lab-sa
+          train@kubernetes              kubernetes   train
+```
+
+
+
+切换上下文到sa
+
+```bash
+kubectl config use-context lab-sa@kubernetes
+```
+
+
+
+执行一些操作
+
+```bash
+kubectl get pod -A
+```
+
+
+
+```bash
+root@node1:~/.kube# kubectl get pod -A
+Error from server (Forbidden): pods is forbidden: User "system:serviceaccount:lab:lab-sa" cannot list resource "pods" in API group "" at the cluster scope
+```
+
+
+
+切换回上下文
+
+```bash
+kubectl config use-context kubernetes-admin@kubernetes
+```
+
+
+
+
+
+## Lab 3 给用户授权
+
+
+
+查看clusterroles角色
+
+```bash
+kubectl get clusterroles -o wide
+```
+
+
+
+```bash
+root@node1:~/.kube# kubectl get clusterroles -o wide
+NAME                                                                   CREATED AT
+admin                                                                  2022-04-23T02:51:44Z
+calico-kube-controllers                                                2022-04-23T02:52:24Z
+calico-node                                                            2022-04-23T02:52:24Z
+cluster-admin                                                          2022-04-23T02:51:44Z
+edit                                                                   2022-04-23T02:51:44Z
+ingress-nginx                                                          2022-12-21T11:19:28Z
+ingress-nginx-admission                                                2022-12-21T11:19:28Z
+kubeadm:get-nodes                                                      2022-04-23T02:51:46Z
+system:aggregate-to-admin                                              2022-04-23T02:51:44Z
+system:aggregate-to-edit                                               2022-04-23T02:51:44Z
+system:aggregate-to-view                                               2022-04-23T02:51:44Z
+system:auth-delegator                                                  2022-04-23T02:51:44Z
+system:basic-user                                                      2022-04-23T02:51:44Z
+system:certificates.k8s.io:certificatesigningrequests:nodeclient       2022-04-23T02:51:44Z
+system:certificates.k8s.io:certificatesigningrequests:selfnodeclient   2022-04-23T02:51:44Z
+system:certificates.k8s.io:kube-apiserver-client-approver              2022-04-23T02:51:44Z
+system:certificates.k8s.io:kube-apiserver-client-kubelet-approver      2022-04-23T02:51:44Z
+system:certificates.k8s.io:kubelet-serving-approver                    2022-04-23T02:51:44Z
+system:certificates.k8s.io:legacy-unknown-approver                     2022-04-23T02:51:44Z
+system:controller:attachdetach-controller                              2022-04-23T02:51:44Z
+system:controller:certificate-controller                               2022-04-23T02:51:44Z
+system:controller:clusterrole-aggregation-controller                   2022-04-23T02:51:44Z
+system:controller:cronjob-controller                                   2022-04-23T02:51:44Z
+system:controller:daemon-set-controller                                2022-04-23T02:51:44Z
+system:controller:deployment-controller                                2022-04-23T02:51:44Z
+system:controller:disruption-controller                                2022-04-23T02:51:44Z
+system:controller:endpoint-controller                                  2022-04-23T02:51:44Z
+system:controller:endpointslice-controller                             2022-04-23T02:51:44Z
+system:controller:endpointslicemirroring-controller                    2022-04-23T02:51:44Z
+system:controller:ephemeral-volume-controller                          2022-04-23T02:51:44Z
+system:controller:expand-controller                                    2022-04-23T02:51:44Z
+system:controller:generic-garbage-collector                            2022-04-23T02:51:44Z
+system:controller:horizontal-pod-autoscaler                            2022-04-23T02:51:44Z
+system:controller:job-controller                                       2022-04-23T02:51:44Z
+system:controller:namespace-controller                                 2022-04-23T02:51:44Z
+system:controller:node-controller                                      2022-04-23T02:51:44Z
+system:controller:persistent-volume-binder                             2022-04-23T02:51:44Z
+system:controller:pod-garbage-collector                                2022-04-23T02:51:44Z
+system:controller:pv-protection-controller                             2022-04-23T02:51:44Z
+system:controller:pvc-protection-controller                            2022-04-23T02:51:44Z
+system:controller:replicaset-controller                                2022-04-23T02:51:44Z
+system:controller:replication-controller                               2022-04-23T02:51:44Z
+system:controller:resourcequota-controller                             2022-04-23T02:51:44Z
+system:controller:root-ca-cert-publisher                               2022-04-23T02:51:44Z
+system:controller:route-controller                                     2022-04-23T02:51:44Z
+system:controller:service-account-controller                           2022-04-23T02:51:44Z
+system:controller:service-controller                                   2022-04-23T02:51:44Z
+system:controller:statefulset-controller                               2022-04-23T02:51:44Z
+system:controller:ttl-after-finished-controller                        2022-04-23T02:51:44Z
+system:controller:ttl-controller                                       2022-04-23T02:51:44Z
+system:coredns                                                         2022-04-23T02:51:46Z
+system:discovery                                                       2022-04-23T02:51:44Z
+system:heapster                                                        2022-04-23T02:51:44Z
+system:kube-aggregator                                                 2022-04-23T02:51:44Z
+system:kube-controller-manager                                         2022-04-23T02:51:44Z
+system:kube-dns                                                        2022-04-23T02:51:44Z
+system:kube-scheduler                                                  2022-04-23T02:51:44Z
+system:kubelet-api-admin                                               2022-04-23T02:51:44Z
+system:monitoring                                                      2022-04-23T02:51:44Z
+system:node                                                            2022-04-23T02:51:44Z
+system:node-bootstrapper                                               2022-04-23T02:51:44Z
+system:node-problem-detector                                           2022-04-23T02:51:44Z
+system:node-proxier                                                    2022-04-23T02:51:44Z
+system:persistent-volume-provisioner                                   2022-04-23T02:51:44Z
+system:public-info-viewer                                              2022-04-23T02:51:44Z
+system:service-account-issuer-discovery                                2022-04-23T02:51:44Z
+system:volume-scheduler                                                2022-04-23T02:51:44Z
+view                                                                   2022-04-23T02:51:44Z
+```
+
+
+
+查看 role 的定义
+
+```bash
+kubectl get -o yaml clusterrole view
+```
+
+
+
+```bash
+kubectl get -o yaml clusterrole edit
+```
+
+
+
+通过设置 clusterrolebinding 给 train 授予最高权限
+
+```bash
+kubectl create clusterrolebinding train@cluster-admin --user=train --clusterrole=cluster-admin
+```
+
+
+
+切换到 train 上下文，执行一些操作
+
+```bash
+kubectl config use-context train@kubernetes 
+```
+
+
+
+```bash
+kubectl get pods -A -o wide
+```
+
+
+
+```bash
+root@node1:~/.kube# kubectl config use-context train@kubernetes
+Switched to context "train@kubernetes".
+root@node1:~/.kube# kubectl get pods -A -o wide
+NAMESPACE       NAME                                        READY   STATUS    RESTARTS      AGE    IP               NODE    NOMINATED NODE   READINESS GATES
+default         katacoda-daemonsets-5l28c                   1/1     Running   0             28m    10.244.104.39    node2   <none>           <none>
+default         katacoda-daemonsets-vkrpj                   1/1     Running   0             28m    10.244.166.137   node1   <none>           <none>
+default         katacoda-daemonsets-wh7hv                   1/1     Running   0             27m    10.244.135.7     node3   <none>           <none>
+ingress-nginx   ingress-nginx-controller-76d86f9848-8r5jq   1/1     Running   0             95m    192.168.1.233    node3   <none>           <none>
+ingress-nginx   ingress-nginx-controller-76d86f9848-klxnj   1/1     Running   0             81m    192.168.1.232    node2   <none>           <none>
+kube-system     calico-kube-controllers-7c845d499-9j9vk     1/1     Running   1 (37d ago)   243d   10.244.166.134   node1   <none>           <none>
+kube-system     calico-node-57snh                           1/1     Running   1 (37d ago)   243d   192.168.1.232    node2   <none>           <none>
+kube-system     calico-node-d5clh                           1/1     Running   1 (37d ago)   243d   192.168.1.231    node1   <none>           <none>
+kube-system     calico-node-qcc6p                           1/1     Running   1 (37d ago)   243d   192.168.1.233    node3   <none>           <none>
+kube-system     coredns-65c54cc984-rdfmg                    1/1     Running   1 (37d ago)   243d   10.244.166.133   node1   <none>           <none>
+kube-system     coredns-65c54cc984-rt4wl                    1/1     Running   1 (37d ago)   243d   10.244.166.132   node1   <none>           <none>
+kube-system     etcd-node1                                  1/1     Running   1 (37d ago)   243d   192.168.1.231    node1   <none>           <none>
+kube-system     kube-apiserver-node1                        1/1     Running   1 (37d ago)   243d   192.168.1.231    node1   <none>           <none>
+kube-system     kube-controller-manager-node1               1/1     Running   1 (37d ago)   243d   192.168.1.231    node1   <none>           <none>
+kube-system     kube-proxy-f6zhl                            1/1     Running   1 (37d ago)   243d   192.168.1.231    node1   <none>           <none>
+kube-system     kube-proxy-jljll                            1/1     Running   1 (37d ago)   243d   192.168.1.233    node3   <none>           <none>
+kube-system     kube-proxy-qkfvc                            1/1     Running   1 (37d ago)   243d   192.168.1.232    node2   <none>           <none>
+kube-system     kube-scheduler-node1                        1/1     Running   1 (37d ago)   243d   192.168.1.231    node1   <none>           <none>
+```
+
+
+
+查看 clusterrolebinding
+
+```bash
+kubectl get clusterrolebinding 
+```
+
+
+
+```bash
+kubectl describe clusterrolebinding train@cluster-admin 
+```
+
+
+
+```bash
+kubectl get clusterrolebinding train@cluster-admin -o yaml
+```
+
+总之都能通,考虑到篇幅,就不附上输出了.
+
+
+
+切换回上下文
+
+```bash
+kubectl config use-context kubernetes-admin@kubernetes
+```
+
+
+
+
+
+## Lab 4 给 sa 授权
+
+
+
+通过创建角色绑定给 lab-sa 授予 lab 命名空间的查看权限
+
+```bash
+kubectl create rolebinding lab-sa --clusterrole=view --serviceaccount=lab:lab-sa -n lab
+```
+
+
+
+切换上下文到 sa
+
+```bash
+kubectl config use-context lab-sa@kubernetes
+```
+
+
+
+执行一些操作
+
+```bash
+kubectl get pod -A
+```
+
+
+
+```bash
+root@node1:~/.kube# kubectl get pod -A
+Error from server (Forbidden): pods is forbidden: User "system:serviceaccount:lab:lab-sa" cannot list resource "pods" in API group "" at the cluster scope
+```
+
+失败依旧
+
+
+
+在自己地盘里睽睽
+
+```bash
+kubectl get pod -n lab
+```
+
+
+
+```bash
+root@node1:~/.kube# kubectl get pod -n lab
+No resources found in lab namespace.
+```
+
+
+
+切换回上下文
+
+```bash
+kubectl config use-context kubernetes-admin@kubernetes
+```
+
+
+
+查看lab命名空间的rolebinding
+
+```bash
+kubectl get rolebinding -n lab
+```
+
+
+
+```bash
+kubectl get -o yaml rolebinding lab-sa -n lab
+```
+
+
+
+```bash
+kubectl describe rolebindings lab-sa -n lab
+```
+
+
+
+```bash
+root@node1:~/.kube# kubectl get rolebinding -n lab
+NAME     ROLE               AGE
+lab-sa   ClusterRole/view   90s
+root@node1:~/.kube# kubectl get -o yaml rolebinding lab-sa -n lab
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  creationTimestamp: "2022-12-22T05:46:11Z"
+  name: lab-sa
+  namespace: lab
+  resourceVersion: "96323"
+  uid: 79ff5ec5-cd62-4c2e-bbde-ba5171e0cf8d
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- kind: ServiceAccount
+  name: lab-sa
+  namespace: lab
+root@node1:~/.kube# kubectl describe rolebindings lab-sa -n lab
+Name:         lab-sa
+Labels:       <none>
+Annotations:  <none>
+Role:
+  Kind:  ClusterRole
+  Name:  view
+Subjects:
+  Kind            Name    Namespace
+  ----            ----    ---------
+  ServiceAccount  lab-sa  lab
+```
+
+
+
+清理环境
+
+```bash
+kubectl delete ns lab
+cp config.20210204 config
+```
+
+
+
+
+
 # HPA 和 Dashboard
 
 
