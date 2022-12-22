@@ -6989,6 +6989,929 @@ kubectl delete -f pvc002.yaml
 
 
 
+## Lab 1 基于文件的 configmap 的创建和使用
+
+
+
+创建 configmap 目录并进入
+
+```bash
+mkdir configmaps
+```
+
+
+
+```bash
+cd configmaps/
+```
+
+
+
+使用范例创建配置文件
+
+```bash
+nano mysqld.cnf
+```
+
+
+
+```text
+[mysqld]
+pid-file  = /var/run/mysqld/mysqld.pid
+socket    = /var/run/mysqld/mysqld.sock
+datadir   = /var/lib/mysql
+symbolic-links=0
+port    = 3306
+```
+
+
+
+创建 mysql 配置文件
+
+```bash
+kubectl create configmap mysql-cnf --from-file=./mysqld.cnf -n blog
+```
+
+
+
+查看 configmap
+
+```bash
+kubectl get configmap -n blog
+```
+
+
+
+```bash
+root@node1:~/k8slab/config# kubectl get configmap -n blog
+NAME               DATA   AGE
+kube-root-ca.crt   1      77m
+mysql-cnf          1      8s
+```
+
+
+
+查看 configmap 详情
+
+```bash
+kubectl describe configmap mysql-cnf -n blog
+```
+
+
+
+```bash
+root@node1:~/k8slab/config# kubectl get configmap -n blog
+NAME               DATA   AGE
+kube-root-ca.crt   1      77m
+mysql-cnf          1      8s
+root@node1:~/k8slab/config# kubectl describe configmap mysql-cnf -n blog
+Name:         mysql-cnf
+Namespace:    blog
+Labels:       <none>
+Annotations:  <none>
+
+Data
+====
+mysqld.cnf:
+----
+[mysqld]
+pid-file  = /var/run/mysqld/mysqld.pid
+socket    = /var/run/mysqld/mysqld.sock
+datadir   = /var/lib/mysql
+symbolic-links=0
+port    = 3306
+
+
+BinaryData
+====
+
+Events:  <none>
+```
+
+
+
+```bash
+kubectl get configmap mysql-cnf -n blog -o yaml
+```
+
+
+
+```bash
+root@node1:~/k8slab/config# kubectl get configmap mysql-cnf -n blog -o yaml
+apiVersion: v1
+data:
+  mysqld.cnf: |
+    [mysqld]
+    pid-file  = /var/run/mysqld/mysqld.pid
+    socket    = /var/run/mysqld/mysqld.sock
+    datadir   = /var/lib/mysql
+    symbolic-links=0
+    port    = 3306
+kind: ConfigMap
+metadata:
+  creationTimestamp: "2022-12-22T02:13:11Z"
+  name: mysql-cnf
+  namespace: blog
+  resourceVersion: "73939"
+  uid: 015844ed-ba54-4173-85cb-e95438749f63
+```
+
+
+
+从显示的配置文件中心进行适当变造，得到 configmap 的 yaml 文件
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-cnf
+  namespace: blog 
+data:
+  mysqld.cnf: | # 配置值
+    [mysqld]
+    pid-file  = /var/run/mysqld/mysqld.pid
+    socket    = /var/run/mysqld/mysqld.sock
+    datadir   = /var/lib/mysql
+    symbolic-links=0
+    port    = 3306
+```
+
+
+
+更新 mysql.depoly.yaml(ver 1.0)
+
+```bash
+nano mysql.deploy.yaml
+```
+
+
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deploy
+  namespace: blog
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      volumes:
+      - name: mysql-config # 定义configmap 卷
+        configMap:
+          name: mysql-cnf
+      containers:
+      - name: mysql
+        image: mysql:5.7
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+        - name: mysql-config # 挂接configmap卷
+          mountPath: /etc/mysql/mysql.conf.d
+        ports:
+        - containerPort: 3306
+          name: dbport
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: wordpress
+        - name: MYSQL_DATABASE
+          value: wordpress
+```
+
+
+
+更新 mysql
+
+```bash
+kubectl apply -f mysql.deploy.yaml 
+```
+
+
+
+查看 blog 名称空间
+
+```bash
+kubectl get pods -n blog
+```
+
+
+
+```bash
+root@node1:~/k8slab/config# kubectl get pods -n blog
+NAME                           READY   STATUS    RESTARTS   AGE
+mysql-deploy-db4f6d8fc-v7xnc   1/1     Running   0          8s
+```
+
+
+
+查看 mysql 的配置文件
+
+```bash
+kubectl exec -it mysql-deploy-db4f6d8fc-v7xnc -n blog /bin/bash
+```
+
+
+
+```bash
+cat /etc/mysql/mysql.conf.d/mysqld.cnf 
+```
+
+
+
+```bash
+root@node1:~/k8slab/config# kubectl exec -it mysql-deploy-db4f6d8fc-v7xnc -n blog /bin/bash
+kubectl exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kubectl exec [POD] -- [COMMAND] instead.
+root@mysql-deploy-db4f6d8fc-v7xnc:/# cat /etc/mysql/mysql.conf.d/mysqld.cnf
+[mysqld]
+pid-file  = /var/run/mysqld/mysqld.pid
+socket    = /var/run/mysqld/mysqld.sock
+datadir   = /var/lib/mysql
+symbolic-links=0
+port    = 3306
+```
+
+
+
+退出pod上下文
+
+```bash
+exit
+```
+
+
+
+
+
+## Lab 2 键值对 configmap 的创建和使用
+
+
+
+创建新的 configmap
+
+```bash
+kubectl create configmap test-conf --from-literal=user=bob --from-literal=password=123456
+```
+
+
+
+查看configmap
+
+```bash
+kubectl describe configmap test-conf 
+```
+
+
+
+```bash
+root@node1:~/k8slab/config# kubectl describe configmap test-conf
+Name:         test-conf
+Namespace:    default
+Labels:       <none>
+Annotations:  <none>
+
+Data
+====
+password:
+----
+123456
+user:
+----
+bob
+
+BinaryData
+====
+
+Events:  <none>
+```
+
+
+
+```bash
+kubectl get configmap test-conf -o yaml
+```
+
+
+
+```bash
+root@node1:~/k8slab/config# kubectl get configmap test-conf -o yaml
+apiVersion: v1
+data:
+  password: "123456"
+  user: bob
+kind: ConfigMap
+metadata:
+  creationTimestamp: "2022-12-22T02:21:08Z"
+  name: test-conf
+  namespace: default
+  resourceVersion: "74794"
+  uid: 6853e868-0966-40b5-869c-577c1869e745
+```
+
+
+
+根据 yaml 文件的输出进行适当变造得到如下 configmap 的 yaml 文件
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-conf
+  namespace: default
+data:
+  password: "123456" # 明文显示的用户名和密码
+  user: bob
+```
+
+
+
+使用样例创建 yaml 文件
+
+```bash
+nano test-conf.pod.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: test-conf
+  name: test-conf
+spec:
+  volumes:
+  - name: config
+    configMap:
+      name: test-conf 
+  containers:
+  - image: busybox
+    name: test-conf
+    volumeMounts:
+    - name: config
+      mountPath: /tmp/volume
+    command:
+    - "/bin/sh"
+    - "-c"
+    - "sleep 37000"
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+```
+
+
+
+创建pod
+
+```bash
+kubectl apply -f test-conf.pod.yaml 
+```
+
+
+
+进入 pod 上下文验证 configmap 的配置
+
+```bash
+kubectl exec -it test-conf /bin/sh
+```
+
+
+
+```bash
+cd /tmp/volume/
+
+ls
+
+cat user
+
+cat password
+```
+
+
+
+```bash
+root@node1:~/k8slab/config# kubectl exec -it test-conf /bin/sh
+kubectl exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kubectl exec [POD] -- [COMMAND] instead.
+/ # cd /tmp/volume/
+/tmp/volume #
+/tmp/volume # ls
+password  user
+/tmp/volume #
+/tmp/volume # cat user
+bob/tmp/volume #
+/tmp/volume # cat password
+123456/tmp/volume #
+```
+
+
+
+退出 pod 上下文
+
+```bash
+exit
+```
+
+
+
+
+
+## Lab 3 使用 env 映射 configmap
+
+
+
+使用样例创建 yaml 文件
+
+```bash
+nano test-conf-2.pod.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: test-conf-2
+  name: test-conf-2
+spec:
+  containers:
+  - image: busybox
+    name: test-conf-2
+    command:
+    - "/bin/sh"
+    - "-c"
+    - "sleep 37000"
+    env:
+    - name: USER
+      valueFrom:
+        configMapKeyRef:
+          name: test-conf
+          key: user
+    - name: PASSWORD
+      valueFrom:
+        configMapKeyRef:
+          name: test-conf
+          key: password
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+```
+
+
+
+创建 pod
+
+```bash
+kubectl apply -f test-conf-2.pod.yaml 
+```
+
+
+
+进入 pod 上下文验证 configmap 的配置
+
+```bash
+kubectl exec -it test-conf-2 /bin/sh
+```
+
+
+
+```bash
+env | grep USER
+
+env | grep PASSWORD
+```
+
+
+
+```bash
+root@node1:~/k8slab/config# kubectl exec -it test-conf-2 /bin/sh
+kubectl exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kubectl exec [POD] -- [COMMAND] instead.
+/ # env | grep USER
+USER=bob
+/ #
+/ # env | grep PASSWORD
+PASSWORD=123456
+/ #
+```
+
+
+
+退出 pod 上下文
+
+```bash
+exit
+```
+
+
+
+
+
+## Lab 4 使用 secret 保存敏感信息
+
+
+
+查看此前包含密码的configmap
+
+```bash
+kubectl describe configmap test-conf
+```
+
+
+
+```bash
+root@node1:~/k8slab/config# kubectl describe configmap test-conf
+Name:         test-conf
+Namespace:    default
+Labels:       <none>
+Annotations:  <none>
+
+Data
+====
+password:
+----
+123456
+user:
+----
+bob
+
+BinaryData
+====
+
+Events:  <none>
+```
+
+注意: 密码是明文显示
+
+
+
+创建 secret
+
+```bash
+kubectl create secret generic mysql-pass --from-literal=password=password -n blog
+```
+
+
+
+查看 secret
+
+```bash
+kubectl get secret -n blog
+```
+
+
+
+```bash
+kubectl describe secret mysql-pass -n blog
+```
+
+
+
+```bash
+root@node1:~/k8slab/config# kubectl get secret -n blog
+NAME                  TYPE                                  DATA   AGE
+default-token-gqhgg   kubernetes.io/service-account-token   3      100m
+mysql-pass            Opaque                                1      7s
+root@node1:~/k8slab/config# kubectl describe secret mysql-pass -n blog
+Name:         mysql-pass
+Namespace:    blog
+Labels:       <none>
+Annotations:  <none>
+
+Type:  Opaque
+
+Data
+====
+password:  8 bytes
+```
+
+
+
+```bash
+kubectl get -o yaml secret mysql-pass -n blog
+```
+
+
+
+```
+root@node1:~/k8slab/config# kubectl get -o yaml secret mysql-pass -n blog
+apiVersion: v1
+data:
+  password: cGFzc3dvcmQ=
+kind: Secret
+metadata:
+  creationTimestamp: "2022-12-22T02:36:31Z"
+  name: mysql-pass
+  namespace: blog
+  resourceVersion: "76425"
+  uid: 7bf165ca-2636-41fc-b6dc-bd626199b134
+type: Opaque
+```
+
+找到 password 对应的值 `cGFzc3dvcmQ=`
+
+
+
+解码 password
+
+```bash
+echo cGFzc3dvcmQ= | base64 -d
+```
+
+
+
+```bash
+root@node1:~/k8slab/config# echo cGFzc3dvcmQ= | base64 -d
+passwordroot@node1:~/k8slab/config#
+```
+
+
+
+将 secrect 密文更新到 mysql.deploy2.yaml
+
+```bash
+nano mysql.deploy2.yaml
+```
+
+
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deploy
+  namespace: blog
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      volumes:
+      - name: mysql-config # 定义configmap 卷
+        configMap:
+          name: mysql-cnf
+      containers:
+      - name: mysql
+        image: mysql:5.7
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+        - name: mysql-config # 挂接configmap卷
+          mountPath: /etc/mysql/mysql.conf.d
+        ports:
+        - containerPort: 3306
+          name: dbport
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom: # 从secrect处调用密码
+            secretKeyRef:
+              name: mysql-pass
+              key: password
+        - name: MYSQL_DATABASE
+          value: wordpress
+```
+
+
+
+更新 mysql
+
+```bash
+kubectl apply -f mysql.deploy2.yaml
+```
+
+
+
+进入 mysql 上下文查看 env
+
+```bash
+kubectl exec -it mysql-deploy-6f5dcfc78d-f2trc /bin/bash -n blog
+```
+
+
+
+```bash
+env
+```
+
+
+
+```bash
+root@node1:~/k8slab/config# kubectl get pod -n blog
+NAME                            READY   STATUS    RESTARTS   AGE
+mysql-deploy-6f5dcfc78d-f2trc   1/1     Running   0          9s
+root@node1:~/k8slab/config# kubectl exec -it mysql-deploy-6f5dcfc78d-f2trc /bin/bash -n blog
+kubectl exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kubectl exec [POD] -- [COMMAND] instead.
+root@mysql-deploy-6f5dcfc78d-f2trc:/# env
+KUBERNETES_SERVICE_PORT_HTTPS=443
+KUBERNETES_SERVICE_PORT=443
+MYSQL_MAJOR=5.7
+HOSTNAME=mysql-deploy-6f5dcfc78d-f2trc
+PWD=/
+MYSQL_ROOT_PASSWORD=password
+HOME=/root
+KUBERNETES_PORT_443_TCP=tcp://10.96.0.1:443
+MYSQL_VERSION=5.7.36-1debian10
+GOSU_VERSION=1.12
+TERM=xterm
+SHLVL=1
+KUBERNETES_PORT_443_TCP_PROTO=tcp
+MYSQL_DATABASE=wordpress
+KUBERNETES_PORT_443_TCP_ADDR=10.96.0.1
+KUBERNETES_SERVICE_HOST=10.96.0.1
+KUBERNETES_PORT=tcp://10.96.0.1:443
+KUBERNETES_PORT_443_TCP_PORT=443
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+_=/usr/bin/env
+```
+
+关注 `MYSQL_ROOT_PASSWORD=password`
+
+
+
+退出pod上下文
+
+```bash
+exit
+```
+
+
+
+
+
+## Lab 5 用 secret 封装 configmap
+
+
+
+基于文件创建 secret
+
+```bash
+cd configmap
+```
+
+
+
+```bash
+kubectl create secret generic mysql-conf --from-file=mysqld.cnf
+```
+
+
+
+查看 secret
+
+```bash
+kubectl get secret
+```
+
+
+
+```bash
+kubectl get secret mysql-conf -o yaml
+```
+
+
+
+```bash
+root@node1:~/k8slab/config# kubectl get secret
+NAME                  TYPE                                  DATA   AGE
+default-token-m2d4t   kubernetes.io/service-account-token   3      242d
+mysql-conf            Opaque                                1      9s
+root@node1:~/k8slab/config# kubectl get secret mysql-conf -o yaml
+apiVersion: v1
+data:
+  mysqld.cnf: W215c3FsZF0KcGlkLWZpbGUgID0gL3Zhci9ydW4vbXlzcWxkL215c3FsZC5waWQKc29ja2V0ICAgID0gL3Zhci9ydW4vbXlzcWxkL215c3FsZC5zb2NrCmRhdGFkaXIgICA9IC92YXIvbGliL215c3FsCnN5bWJvbGljLWxpbmtzPTAKcG9ydCAgICA9IDMzMDYK
+kind: Secret
+metadata:
+  creationTimestamp: "2022-12-22T02:42:15Z"
+  name: mysql-conf
+  namespace: default
+  resourceVersion: "77063"
+  uid: b9a7c8f3-2543-4611-9df5-07741b56fcb6
+type: Opaque
+```
+
+注意，此处 mysqld.cnf 的值被加密
+
+
+
+尝试对这个值进行解码
+
+```bash
+echo W215c3FsZF0KcGlkLWZpbGUgID0gL3Zhci9ydW4vbXlzcWxkL215c3FsZC5waWQKc29ja2V0ICAgID0gL3Zhci9ydW4vbXlzcWxkL215c3FsZC5zb2NrCmRhdGFkaXIgICA9IC92YXIvbGliL215c3FsCnN5bWJvbGljLWxpbmtzPTAKcG9ydCAgICA9IDMzMDYK | base64 -d
+```
+
+
+
+```bash
+root@node1:~/k8slab/config# echo W215c3FsZF0KcGlkLWZpbGUgID0gL3Zhci9ydW4vbXlzcWxkL215c3FsZC5waWQKc29ja2V0ICAgID0gL3Zhci9ydW4vbXlzcWxkL215c3FsZC5zb2NrCmRhdGFkaXIgICA9IC92YXIvbGliL215c3FsCnN5bWJvbGljLWxpbmtzPTAKcG9ydCAgICA9IDMzMDYK | base64 -d
+[mysqld]
+pid-file  = /var/run/mysqld/mysqld.pid
+socket    = /var/run/mysqld/mysqld.sock
+datadir   = /var/lib/mysql
+symbolic-links=0
+port    = 3306
+```
+
+
+
+使用上述范例创建配置文件
+
+```bash
+nano test-secret.pod.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: test-secret
+  name: test-secret
+spec:
+  volumes:
+  - name: test-secret
+    secret:
+      secretName: mysql-conf
+  containers:
+  - image: busybox
+    name: test-secret
+    volumeMounts:
+    - name: test-secret
+      mountPath: /tmp/volume
+    command:
+    - "/bin/sh"
+    - "-c"
+    - "sleep 37000"
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+```
+
+
+
+更新 pod
+
+```bash
+kubectl apply -f test-secret.pod.yaml 
+```
+
+
+
+进入 pod 上下文验证 secret 的配置
+
+```bash
+kubectl exec -it test-secret /bin/sh
+```
+
+
+
+```bash
+cat /tmp/volume/mysqld.cnf
+```
+
+
+
+```bash
+root@node1:~/k8slab/config# kubectl exec -it test-secret /bin/sh
+kubectl exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kubectl exec [POD] -- [COMMAND] instead.
+/ # cat /tmp/volume/mysqld.cnf
+[mysqld]
+pid-file  = /var/run/mysqld/mysqld.pid
+socket    = /var/run/mysqld/mysqld.sock
+datadir   = /var/lib/mysql
+symbolic-links=0
+port    = 3306
+```
+
+
+
+退出 pod 上下文
+
+```bash
+exit
+```
+
+
+
+清理
+
+```bash
+kubectl delete -f .
+```
+
+
+
 # 群集资源调度
 
 
