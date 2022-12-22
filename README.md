@@ -5837,6 +5837,1154 @@ kubectl apply -f deploy.yaml
 
 
 
+```bash
+root@node1:~/k8slab/storage# pwd
+/root/k8slab/storage
+```
+
+
+
+## Lab 1 hostpath 实现方式
+
+
+
+创建名称空间
+
+```bash
+kubectl create ns blog
+```
+
+
+
+分析原版mysql deployment配置文件
+
+```bash
+mysql.deploy.yaml
+```
+
+
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deploy
+  namespace: blog
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:5.7
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3306
+          name: dbport
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: wordpress
+        - name: MYSQL_DATABASE
+          value: wordpress
+```
+
+
+
+使用 hostPath 更新 mysql.deploy.yaml
+
+```bash
+nano mysql.deploy.yaml
+```
+
+
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deploy
+  namespace: blog
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      volumes: # 定义卷
+      - name: mysqldata
+        hostPath:
+          path: /mysql
+      containers:
+      - name: mysql
+        image: mysql:5.7
+        imagePullPolicy: IfNotPresent
+        volumeMounts:    #设定挂接点
+        - name: mysqldata
+          mountPath: /var/lib/mysql
+        ports:
+        - containerPort: 3306
+          name: dbport
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: wordpress
+        - name: MYSQL_DATABASE
+          value: wordpress
+```
+
+
+
+运行mysql deployment
+
+```bash
+kubectl apply -f mysql.deploy.yaml
+```
+
+
+
+查看pod，关注mysql pod所在节点的信息
+
+```bash
+kubectl get pod -n blog -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/storage# kubectl get pod -n blog -o wide
+NAME                           READY   STATUS    RESTARTS   AGE   IP              NODE    NOMINATED NODE   READINESS GATES
+mysql-deploy-cd587bcb4-cq42r   1/1     Running   0          63s   10.244.104.20   node2   <none>           <none>
+```
+
+
+
+切换到上述节点的上下文，检查 volume 映射效果
+
+```bash
+ll /mysql/
+```
+
+
+
+```bash
+root@node2:~# ll /mysql/
+total 188488
+drwxr-xr-x  6 systemd-coredump root                 4096 Dec 22 08:57 ./
+drwxr-xr-x 23 root             root                 4096 Dec 22 08:57 ../
+-rw-r-----  1 systemd-coredump systemd-coredump       56 Dec 22 08:57 auto.cnf
+-rw-------  1 systemd-coredump systemd-coredump     1676 Dec 22 08:57 ca-key.pem
+-rw-r--r--  1 systemd-coredump systemd-coredump     1112 Dec 22 08:57 ca.pem
+-rw-r--r--  1 systemd-coredump systemd-coredump     1112 Dec 22 08:57 client-cert.pem
+-rw-------  1 systemd-coredump systemd-coredump     1680 Dec 22 08:57 client-key.pem
+-rw-r-----  1 systemd-coredump systemd-coredump     1352 Dec 22 08:57 ib_buffer_pool
+-rw-r-----  1 systemd-coredump systemd-coredump 79691776 Dec 22 08:57 ibdata1
+-rw-r-----  1 systemd-coredump systemd-coredump 50331648 Dec 22 08:57 ib_logfile0
+-rw-r-----  1 systemd-coredump systemd-coredump 50331648 Dec 22 08:57 ib_logfile1
+-rw-r-----  1 systemd-coredump systemd-coredump 12582912 Dec 22 08:57 ibtmp1
+drwxr-x---  2 systemd-coredump systemd-coredump     4096 Dec 22 08:57 mysql/
+drwxr-x---  2 systemd-coredump systemd-coredump     4096 Dec 22 08:57 performance_schema/
+-rw-------  1 systemd-coredump systemd-coredump     1676 Dec 22 08:57 private_key.pem
+-rw-r--r--  1 systemd-coredump systemd-coredump      452 Dec 22 08:57 public_key.pem
+-rw-r--r--  1 systemd-coredump systemd-coredump     1112 Dec 22 08:57 server-cert.pem
+-rw-------  1 systemd-coredump systemd-coredump     1676 Dec 22 08:57 server-key.pem
+drwxr-x---  2 systemd-coredump systemd-coredump    12288 Dec 22 08:57 sys/
+drwxr-x---  2 systemd-coredump systemd-coredump     4096 Dec 22 08:57 wordpress/
+```
+
+
+
+
+
+## Lab 2 使用 NFS 进行数据持久化 
+
+
+
+在本例中，以 node 2 作为 NFS 服务器，在该节点上安装 NFS 
+
+```bash
+apt install -y nfs-kernel-server
+```
+
+
+
+创建共享目录
+
+```bash
+mkdir /data
+```
+
+
+
+设置共享权限
+
+```bash
+chmod 777 -R /data
+```
+
+
+
+创建实验用目录
+
+```
+mkdir /data/mysql
+```
+
+
+
+编辑配置文件
+
+```bash
+nano /etc/exports
+```
+
+
+
+在现有配置文件的最后一行增加以下代码
+
+```bash
+/data *(rw,no_root_squash)
+```
+
+
+
+```bash
+root@node2:~# cat /etc/exports
+# /etc/exports: the access control list for filesystems which may be exported
+#               to NFS clients.  See exports(5).
+#
+# Example for NFSv2 and NFSv3:
+# /srv/homes       hostname1(rw,sync,no_subtree_check) hostname2(ro,sync,no_subtree_check)
+#
+# Example for NFSv4:
+# /srv/nfs4        gss/krb5i(rw,sync,fsid=0,crossmnt,no_subtree_check)
+# /srv/nfs4/homes  gss/krb5i(rw,sync,no_subtree_check)
+#
+/data *(rw,no_root_squash)
+```
+
+
+
+
+
+重启服务（如果节点重启之后，共享丢失，请重做此步）
+
+```bash
+systemctl restart nfs-server
+```
+
+
+
+设置开机自启
+
+```bash
+systemctl enable nfs-server
+```
+
+
+
+在其他机器上执行安装 NFS 工具和检查挂接
+
+```text
+apt install -y nfs-kernel-server
+```
+
+
+
+```text
+showmount -e NFS
+```
+
+
+
+```bash
+root@node3:~# showmount -e NFS
+Export list for NFS:
+/data *
+```
+
+
+
+使用NFS更新 mysql.deploy.yaml （需要替换NFS服务器ip地址）
+
+```bash
+nano mysql.deploy2.yaml
+```
+
+
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deploy
+  namespace: blog
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      volumes: # 定义卷
+      - name: mysqldata
+        nfs: # 使用NFS
+          server: nfs
+          path: "/data/mysql"
+      containers:
+      - name: mysql
+        image: mysql:5.7
+        imagePullPolicy: IfNotPresent
+        volumeMounts:    #设定挂接点
+        - name: mysqldata
+          mountPath: /var/lib/mysql
+        ports:
+        - containerPort: 3306
+          name: dbport
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: wordpress
+        - name: MYSQL_DATABASE
+          value: wordpress
+```
+
+
+
+更新deployment
+
+```bash
+kubectl apply -f mysql.deploy2.yaml
+```
+
+
+
+查看pod
+
+```bash
+kubectl get pod -n blog -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/storage# kubectl get pod -n blog -o wide
+NAME                            READY   STATUS    RESTARTS   AGE   IP              NODE    NOMINATED NODE   READINESS GATES
+mysql-deploy-77d94f6fb6-2gcds   1/1     Running   0          7s    10.244.104.23   node2   <none>           <none>
+```
+
+
+
+到NFS节点上查看目录
+
+```bash
+ll /data/mysql/
+```
+
+
+
+```bash
+root@node2:~# ll /data/mysql/
+total 188488
+drwxr-xr-x 6 systemd-coredump root                 4096 Dec 22 09:14 ./
+drwxrwxrwx 3 root             root                 4096 Dec 22 09:08 ../
+-rw-r----- 1 systemd-coredump systemd-coredump       56 Dec 22 09:14 auto.cnf
+-rw------- 1 systemd-coredump systemd-coredump     1680 Dec 22 09:14 ca-key.pem
+-rw-r--r-- 1 systemd-coredump systemd-coredump     1112 Dec 22 09:14 ca.pem
+-rw-r--r-- 1 systemd-coredump systemd-coredump     1112 Dec 22 09:14 client-cert.pem
+-rw------- 1 systemd-coredump systemd-coredump     1680 Dec 22 09:14 client-key.pem
+-rw-r----- 1 systemd-coredump systemd-coredump     1352 Dec 22 09:14 ib_buffer_pool
+-rw-r----- 1 systemd-coredump systemd-coredump 79691776 Dec 22 09:14 ibdata1
+-rw-r----- 1 systemd-coredump systemd-coredump 50331648 Dec 22 09:14 ib_logfile0
+-rw-r----- 1 systemd-coredump systemd-coredump 50331648 Dec 22 09:14 ib_logfile1
+-rw-r----- 1 systemd-coredump systemd-coredump 12582912 Dec 22 09:14 ibtmp1
+drwxr-x--- 2 systemd-coredump systemd-coredump     4096 Dec 22 09:14 mysql/
+drwxr-x--- 2 systemd-coredump systemd-coredump     4096 Dec 22 09:14 performance_schema/
+-rw------- 1 systemd-coredump systemd-coredump     1676 Dec 22 09:14 private_key.pem
+-rw-r--r-- 1 systemd-coredump systemd-coredump      452 Dec 22 09:14 public_key.pem
+-rw-r--r-- 1 systemd-coredump systemd-coredump     1112 Dec 22 09:14 server-cert.pem
+-rw------- 1 systemd-coredump systemd-coredump     1676 Dec 22 09:14 server-key.pem
+drwxr-x--- 2 systemd-coredump systemd-coredump    12288 Dec 22 09:14 sys/
+drwxr-x--- 2 systemd-coredump systemd-coredump     4096 Dec 22 09:14 wordpress/
+```
+
+
+
+
+
+## Lab 3 使用 PVC 和 PV
+
+
+
+使用PVC更新 mysql.deploy.yaml
+
+```bash
+nano mysql.deploy3.yaml
+```
+
+
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deploy
+  namespace: blog
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      volumes: # 定义卷
+      - name: mysqldata
+        persistentVolumeClaim: # 使用PVC
+          claimName: mysqldata
+      containers:
+      - name: mysql
+        image: mysql:5.7
+        imagePullPolicy: IfNotPresent
+        volumeMounts:    #设定挂接点
+        - name: mysqldata
+          mountPath: /var/lib/mysql
+        ports:
+        - containerPort: 3306
+          name: dbport
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: wordpress
+        - name: MYSQL_DATABASE
+          value: wordpress
+```
+
+
+
+更新 deployment
+
+```bash
+kubectl apply -f mysql.deploy3.yaml
+```
+
+
+
+查看 pod 状态
+
+```bash
+kubectl get pod -n blog -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/storage# kubectl get pod -n blog -o wide
+NAME                            READY   STATUS    RESTARTS   AGE   IP              NODE     NOMINATED NODE   READINESS GATES
+mysql-deploy-77d94f6fb6-2gcds   1/1     Running   0          10m   10.244.104.23   node2    <none>           <none>
+mysql-deploy-796f885bb8-t6kr8   0/1     Pending   0          6s    <none>          <none>   <none>           <none>
+```
+
+可以观察到 pod 处于 pending 状态
+
+
+
+查看 mysql pod 详细信息
+
+```bash
+kubectl describe pod mysql-deploy-796f885bb8-t6kr8 -n blog
+```
+
+
+
+```bash
+Events:
+  Type     Reason            Age   From               Message
+  ----     ------            ----  ----               -------
+  Warning  FailedScheduling  69s   default-scheduler  0/3 nodes are available: 3 persistentvolumeclaim "mysqldata" not found.
+```
+
+可以看到无法找到 pvc
+
+
+
+使用以下范例创建 pvc 定义文件
+
+```bash
+nano mysql.pvc.yaml
+```
+
+
+
+```yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: mysqldata
+  namespace: blog
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+```
+
+
+
+创建pvc
+
+```bash
+kubectl apply -f mysql.pvc.yaml 
+```
+
+
+
+查看 pvc，pvc 是定义在命名空间
+
+```bash
+kubectl get pvc -n blog
+```
+
+
+
+```bash
+root@node1:~/k8slab/storage# kubectl get pvc -n blog
+NAME        STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+mysqldata   Pending                                                     11s
+```
+
+
+
+再次查看mysql pod详细信息
+
+```bash
+kubectl describe pod mysql-deploy-796f885bb8-t6kr8 -n blog
+```
+
+
+
+```bash
+Events:
+  Type     Reason            Age                From               Message
+  ----     ------            ----               ----               -------
+  Warning  FailedScheduling  2m47s              default-scheduler  0/3 nodes are available: 3 persistentvolumeclaim "mysqldata" not found.
+  Warning  FailedScheduling  55s (x1 over 90s)  default-scheduler  0/3 nodes are available: 3 persistentvolumeclaim "mysqldata" not found.
+```
+
+状态依然是 pending，pvc 绑定出错
+
+
+
+查看pvc状态
+
+```bash
+kubectl describe pvc mysqldata -n blog
+```
+
+
+
+```bash
+root@node1:~/k8slab/storage# kubectl describe pvc mysqldata -n blog
+Name:          mysqldata
+Namespace:     blog
+StorageClass:
+Status:        Pending
+Volume:
+Labels:        <none>
+Annotations:   <none>
+Finalizers:    [kubernetes.io/pvc-protection]
+Capacity:
+Access Modes:
+VolumeMode:    Filesystem
+Used By:       mysql-deploy-796f885bb8-t6kr8
+Events:
+  Type    Reason         Age                From                         Message
+  ----    ------         ----               ----                         -------
+  Normal  FailedBinding  2s (x8 over 102s)  persistentvolume-controller  no persistent volumes available for this claim and no storage class is set
+```
+
+可以看到没有可用 pv 
+
+
+
+使用以下范例定义pv （需要替换NFS服务器ip地址）
+
+```bash
+nano mysql.pv.yaml
+```
+
+
+
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mysqldata-pv
+  labels:
+    name: mysqldata-pv
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Recycle
+  nfs:
+    server: nfs
+    path: /data/mysql
+```
+
+
+
+创建 pv
+
+```bash
+kubectl apply -f mysql.pv.yaml
+```
+
+
+
+查看 pv
+
+```bash
+kubectl get pv -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/storage# kubectl get pv -o wide
+NAME           CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM            STORAGECLASS   REASON   AGE   VOLUMEMODE
+mysqldata-pv   5Gi        RWO            Recycle          Bound    blog/mysqldata                           30s   Filesystem
+```
+
+已经和此前的 pvc 绑定
+
+
+
+查看 pv 详细信息
+
+```bash
+kubectl describe pv mysqldata-pv -n blog
+```
+
+
+
+```bash
+root@node1:~/k8slab/storage# kubectl describe pv mysqldata-pv -n blog
+Name:            mysqldata-pv
+Labels:          name=mysqldata-pv
+Annotations:     pv.kubernetes.io/bound-by-controller: yes
+Finalizers:      [kubernetes.io/pv-protection]
+StorageClass:
+Status:          Bound
+Claim:           blog/mysqldata
+Reclaim Policy:  Recycle
+Access Modes:    RWO
+VolumeMode:      Filesystem
+Capacity:        5Gi
+Node Affinity:   <none>
+Message:
+Source:
+    Type:      NFS (an NFS mount that lasts the lifetime of a pod)
+    Server:    nfs
+    Path:      /data/mysql
+    ReadOnly:  false
+Events:        <none>
+```
+
+可以看到它所对应的目录
+
+
+
+查看 pvc
+
+```bash
+kubectl get pvc -n blog -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/storage# kubectl get pvc -n blog -o wide
+NAME        STATUS   VOLUME         CAPACITY   ACCESS MODES   STORAGECLASS   AGE     VOLUMEMODE
+mysqldata   Bound    mysqldata-pv   5Gi        RWO                           4m42s   Filesystem
+```
+
+
+
+查看 pvc 状态
+
+```bash
+kubectl describe pvc mysqldata -n blog
+```
+
+
+
+```bash
+root@node1:~/k8slab/storage# kubectl get pvc -n blog -o wide
+NAME        STATUS   VOLUME         CAPACITY   ACCESS MODES   STORAGECLASS   AGE     VOLUMEMODE
+mysqldata   Bound    mysqldata-pv   5Gi        RWO                           4m42s   Filesystem
+root@node1:~/k8slab/storage# kubectl describe pvc mysqldata -n blog
+Name:          mysqldata
+Namespace:     blog
+StorageClass:
+Status:        Bound
+Volume:        mysqldata-pv
+Labels:        <none>
+Annotations:   pv.kubernetes.io/bind-completed: yes
+               pv.kubernetes.io/bound-by-controller: yes
+Finalizers:    [kubernetes.io/pvc-protection]
+Capacity:      5Gi
+Access Modes:  RWO
+VolumeMode:    Filesystem
+Used By:       mysql-deploy-796f885bb8-t6kr8
+Events:
+  Type    Reason         Age                     From                         Message
+  ----    ------         ----                    ----                         -------
+  Normal  FailedBinding  2m45s (x12 over 5m25s)  persistentvolume-controller  no persistent volumes available for this claim and no storage class is set
+```
+
+
+
+
+
+再次查看 mysql pod 详细信息
+
+```bash
+kubectl describe pod mysql-deploy-796f885bb8-t6kr8 -n blog
+```
+
+
+
+```bash
+Events:
+  Type     Reason            Age                   From               Message
+  ----     ------            ----                  ----               -------
+  Warning  FailedScheduling  8m24s                 default-scheduler  0/3 nodes are available: 3 persistentvolumeclaim "mysqldata" not found.
+  Warning  FailedScheduling  6m32s (x1 over 7m7s)  default-scheduler  0/3 nodes are available: 3 persistentvolumeclaim "mysqldata" not found.
+  Warning  FailedScheduling  4m7s (x1 over 5m7s)   default-scheduler  0/3 nodes are available: 3 pod has unbound immediate PersistentVolumeClaims.
+  Normal   Scheduled         3m31s                 default-scheduler  Successfully assigned blog/mysql-deploy-796f885bb8-t6kr8 to node2
+  Normal   Pulled            3m31s                 kubelet            Container image "mysql:5.7" already present on machine
+  Normal   Created           3m31s                 kubelet            Created container mysql
+  Normal   Started           3m31s                 kubelet            Started container mysql
+```
+
+一切 OK
+
+
+
+清理资源
+
+```bash
+kubectl delete -f mysql.deploy3.yaml 
+kubectl delete -f mysql.pvc.yaml
+kubectl delete -f mysql.pv.yaml
+```
+
+
+
+
+
+## Lab 4 使用存储类动态交付 PV
+
+
+
+安装 NFS CSI，进入csi文件夹
+
+```bash
+kubectl apply -f ./
+```
+
+
+
+```bash
+root@node1:~/k8slab/csi# pwd
+/root/k8slab/csi
+root@node1:~/k8slab/csi# kubectl apply -f ./
+deployment.apps/csi-nfs-controller created
+csidriver.storage.k8s.io/nfs.csi.k8s.io created
+daemonset.apps/csi-nfs-node created
+serviceaccount/csi-nfs-controller-sa created
+clusterrole.rbac.authorization.k8s.io/nfs-external-provisioner-role created
+clusterrolebinding.rbac.authorization.k8s.io/nfs-csi-provisioner-binding created
+```
+
+
+
+查看 csi 对应 pod
+
+```text
+kubectl get pod -n kube-system -o wide | grep csi
+```
+
+
+
+```bash
+root@node1:~/k8slab/csi# kubectl get pod -n kube-system -o wide | grep csi
+csi-nfs-controller-59fc979848-kbhf2       3/3     Running   0             3m18s   192.168.1.233    node3   <none>           <none>
+csi-nfs-controller-59fc979848-mvr9x       3/3     Running   0             3m18s   192.168.1.232    node2   <none>           <none>
+csi-nfs-node-9z78g                        3/3     Running   0             3m18s   192.168.1.232    node2   <none>           <none>
+csi-nfs-node-kj85f                        3/3     Running   0             3m18s   192.168.1.231    node1   <none>           <none>
+csi-nfs-node-tgd4f                        3/3     Running   0             3m18s   192.168.1.233    node3   <none>           <none>
+```
+
+等待 csi-nfs 相关 pod 就绪之后再进行后续步骤
+
+
+
+回到 storage 目录创建 StorageClass 定义文件 （需要替换NFS服务器ip地址）
+
+```bash
+root@node1:~/k8slab/storage# pwd
+/root/k8slab/storage
+```
+
+
+
+```bash
+nano nfs-sc.yaml
+```
+
+
+
+```yaml
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-csi
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: nfs # 指定nfs服务器 IP 地址或域名
+  share: /data
+reclaimPolicy: Retain  # only retain is supported
+volumeBindingMode: Immediate
+mountOptions:
+  - hard
+  - nfsvers=4.1
+```
+
+
+
+创建 sc
+
+```bash
+kubectl apply -f nfs-sc.yaml
+```
+
+
+
+查看 sc
+
+```bash
+kubectl get sc -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/storage# kubectl get sc -o wide
+NAME      PROVISIONER      RECLAIMPOLICY   VOLUMEBINDINGMODE   ALLOWVOLUMEEXPANSION   AGE
+nfs-csi   nfs.csi.k8s.io   Retain          Immediate           false                  8s
+```
+
+
+
+使用以下样例创建 pvc yaml
+
+```bash
+nano pvc002.yaml
+```
+
+
+
+```yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: pvc002
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: nfs-csi
+  resources:
+    requests:
+      storage: 10Gi
+```
+
+
+
+创建 pvc
+
+```bash
+kubectl apply -f pvc002.yaml 
+```
+
+
+
+查看 pvc
+
+```bash
+kubectl get pvc
+```
+
+
+
+```bash
+root@node1:~/k8slab/storage# kubectl get pvc
+NAME     STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+pvc002   Bound    pvc-bb58a14d-d76b-4b99-b6fa-043336aaf6ff   10Gi       RWX            nfs-csi        7s
+```
+
+可以看到自动创建的 pv
+
+
+
+查看 pv
+
+```bash
+kubectl get pv -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/storage# kubectl get pv
+NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM            STORAGECLASS   REASON   AGE
+pvc-bb58a14d-d76b-4b99-b6fa-043336aaf6ff   10Gi       RWX            Retain           Bound    default/pvc002   nfs-csi                 48s
+```
+
+特别关注 pv 的名称 `pvc-bb58a14d-d76b-4b99-b6fa-043336aaf6ff`
+
+
+
+到 NFS 节点上查看目录
+
+```bash
+ll /data/
+```
+
+
+
+```bash
+root@node2:~# ll /data/
+total 20
+drwxrwxrwx  4 root             root 4096 Dec 22 09:38 ./
+drwxr-xr-x 23 root             root 4096 Dec 22 08:57 ../
+-rwxrwxrwx  1 root             root    0 Dec 21 12:02 aaa*
+-rwxrwxrwx  1 root             root    0 Dec 21 12:02 bbb*
+-rwxrwxrwx  1 root             root   16 Dec 21 12:02 ccc*
+drwxr-xr-x  2 systemd-coredump root 4096 Dec 22 09:35 mysql/
+drwxrwxrwx  2 root             root 4096 Dec 22 09:38 pvc-bb58a14d-d76b-4b99-b6fa-043336aaf6ff/
+```
+
+可以看到 pv 对应的目录
+
+
+
+更新 mysql pvc 文件
+
+```bash
+nano mysql.pvc2.yaml 
+```
+
+
+
+```yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: mysqldata
+  namespace: blog
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs-csi # 指定使用存储类
+  resources:
+    requests:
+      storage: 5Gi
+```
+
+
+
+更新 pvc
+
+```bash
+kubectl apply -f mysql.pvc2.yaml
+```
+
+
+
+查看 pvc
+
+```bash
+kubectl get pvc -n blog -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/storage# kubectl get pvc -n blog -o wide
+NAME        STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE   VOLUMEMODE
+mysqldata   Bound    pvc-c51e5118-a7c0-44ad-bf69-d7eca38fbdc8   5Gi        RWO            nfs-csi        9s    Filesystem
+```
+
+可以看到系统自动创建了 pv
+
+
+
+查看 pv
+
+```bash
+kubectl get pv -o wide
+```
+
+
+
+```bash
+root@node1:~/k8slab/storage# kubectl get pv -o wide
+NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM            STORAGECLASS   REASON   AGE     VOLUMEMODE
+pvc-bb58a14d-d76b-4b99-b6fa-043336aaf6ff   10Gi       RWX            Retain           Bound    default/pvc002   nfs-csi                 8m57s   Filesystem
+pvc-c51e5118-a7c0-44ad-bf69-d7eca38fbdc8   5Gi        RWO            Retain           Bound    blog/mysqldata   nfs-csi                 53s     Filesystem
+```
+
+
+
+查看 pv 详细信息
+
+```bash
+kubectl describe pv pvc-c51e5118-a7c0-44ad-bf69-d7eca38fbdc8 -n blog
+```
+
+
+
+```bash
+root@node1:~/k8slab/storage# kubectl describe pv pvc-c51e5118-a7c0-44ad-bf69-d7eca38fbdc8 -n blog
+Name:            pvc-c51e5118-a7c0-44ad-bf69-d7eca38fbdc8
+Labels:          <none>
+Annotations:     pv.kubernetes.io/provisioned-by: nfs.csi.k8s.io
+Finalizers:      [kubernetes.io/pv-protection]
+StorageClass:    nfs-csi
+Status:          Bound
+Claim:           blog/mysqldata
+Reclaim Policy:  Retain
+Access Modes:    RWO
+VolumeMode:      Filesystem
+Capacity:        5Gi
+Node Affinity:   <none>
+Message:
+Source:
+    Type:              CSI (a Container Storage Interface (CSI) volume source)
+    Driver:            nfs.csi.k8s.io
+    FSType:
+    VolumeHandle:      nfs#data#pvc-c51e5118-a7c0-44ad-bf69-d7eca38fbdc8
+    ReadOnly:          false
+    VolumeAttributes:      server=nfs
+                           share=/data/pvc-c51e5118-a7c0-44ad-bf69-d7eca38fbdc8
+                           storage.kubernetes.io/csiProvisionerIdentity=1671671932712-8081-nfs.csi.k8s.io
+Events:                <none>
+```
+
+重点关注 pv 所对应路径
+
+
+
+在 NFS 节点上查看 pv 所对应的目录
+
+```bash
+ll /data/pvc-c51e5118-a7c0-44ad-bf69-d7eca38fbdc8/
+```
+
+
+
+```bash
+root@node2:~# ll /data/pvc-c51e5118-a7c0-44ad-bf69-d7eca38fbdc8/
+total 8
+drwxrwxrwx 2 root root 4096 Dec 22 09:46 ./
+drwxrwxrwx 5 root root 4096 Dec 22 09:46 ../
+```
+
+此时是空的
+
+
+
+重新创建 mysql
+
+```bash
+kubectl apply -f mysql.deploy3.yaml 
+```
+
+
+
+再次查看 pv 所对应的目录
+
+```bash
+ll /data/pvc-c51e5118-a7c0-44ad-bf69-d7eca38fbdc8/
+```
+
+
+
+```bash
+root@node2:~# ll /data/pvc-c51e5118-a7c0-44ad-bf69-d7eca38fbdc8/
+total 122944
+drwxrwxrwx 5 systemd-coredump root                 4096 Dec 22 09:50 ./
+drwxrwxrwx 5 root             root                 4096 Dec 22 09:46 ../
+-rw-r----- 1 systemd-coredump systemd-coredump       56 Dec 22 09:50 auto.cnf
+-rw------- 1 systemd-coredump systemd-coredump     1680 Dec 22 09:50 ca-key.pem
+-rw-r--r-- 1 systemd-coredump systemd-coredump     1112 Dec 22 09:50 ca.pem
+-rw-r--r-- 1 systemd-coredump systemd-coredump     1112 Dec 22 09:50 client-cert.pem
+-rw------- 1 systemd-coredump systemd-coredump     1680 Dec 22 09:50 client-key.pem
+-rw-r----- 1 systemd-coredump systemd-coredump 12582912 Dec 22 09:50 ibdata1
+-rw-r----- 1 systemd-coredump systemd-coredump 50331648 Dec 22 09:50 ib_logfile0
+-rw-r----- 1 systemd-coredump systemd-coredump 50331648 Dec 22 09:50 ib_logfile1
+-rw-r----- 1 systemd-coredump systemd-coredump 12582912 Dec 22 09:50 ibtmp1
+drwxr-x--- 2 systemd-coredump systemd-coredump     4096 Dec 22 09:50 mysql/
+drwxr-x--- 2 systemd-coredump systemd-coredump     4096 Dec 22 09:50 performance_schema/
+-rw------- 1 systemd-coredump systemd-coredump     1680 Dec 22 09:50 private_key.pem
+-rw-r--r-- 1 systemd-coredump systemd-coredump      452 Dec 22 09:50 public_key.pem
+-rw-r--r-- 1 systemd-coredump systemd-coredump     1112 Dec 22 09:50 server-cert.pem
+-rw------- 1 systemd-coredump systemd-coredump     1676 Dec 22 09:50 server-key.pem
+drwxr-x--- 2 systemd-coredump systemd-coredump    12288 Dec 22 09:50 sys/
+```
+
+此时应该有料
+
+
+
+清理环境
+
+```bash
+kubectl delete -f mysql.deploy3.yaml 
+kubectl delete -f mysql.pvc2.yaml
+kubectl delete -f pvc002.yaml
+```
+
+
+
+
+
+
+
 # ConfigMap 和 Secret
 
 
