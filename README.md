@@ -1,8 +1,796 @@
-# K8S群集的安装
+# K8S 群集的安装
+
+环境说明:
+
+- 虚拟机硬件规格: 4CPU 8G 内存 127G 硬盘空间
+- 虚拟机数量: 3台
+- 虚拟机操作系统: Ubuntu 20.04
+- 虚拟化平台: hyper-v
+- 三台虚拟机的命名为node 1 node 2 node3 其中 node1 为 master 承载控制平面,其余两台机器 node2 node3 作为 work node 运行主句平面
+- 三台虚拟机的 ip 地址分别为 192.168.1.231 192.168.1.232  192.168.1.233
 
 
 
-## 手动安装
+## 手动安装 
+
+### 系统基本配置
+
+关闭 swap
+
+```bash
+sudo swapoff -a
+
+sudo rm /swap.img
+```
+
+
+
+编辑配置文件
+
+```bash
+nano /etc/fstab 
+```
+
+
+
+注释最后一行
+
+```text
+# / was on /dev/vda1 during installation
+```
+
+ 
+
+配置主机名, 以 master 为例
+
+```bash
+hostnamectl set-hostname node1
+```
+
+
+
+设置静态 IP 地址
+
+安装nmcli
+
+```bash
+apt install network-manager -y 
+```
+
+修改配置文件
+
+```bash
+nano /etc/netplan/01-netcfg.yaml
+```
+
+
+
+```yaml
+network:
+    version: 2
+    renderer: NetworkManager
+    ethernets:
+        eth0:
+            dhcp4: no #设置成no
+        eth1:
+            dhcp4: true
+        eth2:
+            dhcp4: true
+        eth3:
+            dhcp4: true
+        eth4:
+            dhcp4: true
+```
+
+
+
+```
+nano /etc/netplan/00-installer-config.yaml
+```
+
+
+
+
+```yaml
+network:
+  version: 2
+  ethernets:
+    eth0:   # 配置的网卡的名称
+      addresses: [192.168.1.231/24]   # 配置的静态ip地址和掩码
+      dhcp4: no    # 关闭dhcp4
+      optional: true
+      gateway4: 192.168.1.1 # 网关地址
+      nameservers:
+        addresses: [192.168.1.1]  # DNS服务器地址，多个DNS服务器地址需要用英文逗号分隔开，可不配置
+```
+
+
+
+使静态 IP 配置生效
+
+```bash
+netplan apply
+```
+
+
+
+设置静态名称解析,考虑到后续会使用 node2 作为 `nfs` 服务器,此处预先做好名称解析
+
+```bash
+cat >> /etc/hosts << EOF
+192.168.1.231 node1
+192.168.1.232 node2 nfs
+192.168.1.233 node3
+EOF
+```
+
+
+
+修改 apt 源
+
+```bash
+sudo nano /etc/apt/sources.list
+```
+
+清空/etc/apt/sources.list，并添加如下内容,如果是在阿里云上的vm，这步可以跳过
+
+
+
+```text
+deb Index of /ubuntu/ bionic main restricted universe multiverse
+deb-src Index of /ubuntu/ bionic main restricted universe multiverse
+
+deb Index of /ubuntu/ bionic-security main restricted universe multiverse
+deb-src Index of /ubuntu/ bionic-security main restricted universe multiverse
+
+deb Index of /ubuntu/ bionic-updates main restricted universe multiverse
+deb-src Index of /ubuntu/ bionic-updates main restricted universe multiverse
+
+deb Index of /ubuntu/ bionic-proposed main restricted universe multiverse
+deb-src Index of /ubuntu/ bionic-proposed main restricted universe multiverse
+
+deb Index of /ubuntu/ bionic-backports main restricted universe multiverse
+deb-src Index of /ubuntu/ bionic-backports main restricted universe multiverse
+```
+
+
+
+执行 apt 源更新操作
+
+```bash
+apt update -y 
+```
+
+
+
+### 调整系统设置
+
+清空防火墙规则
+
+```bash
+iptables -F
+```
+
+
+
+\5. 修改内核参数
+
+```bash
+apt-get install procps
+```
+
+
+
+```bash
+nano /etc/sysctl.d/k8s.conf
+```
+
+
+
+```bash
+net.ipv4.ip_forward = 1
+vm.swappiness = 0
+```
+
+
+
+```bash
+sysctl -p /etc/sysctl.d/k8s.conf
+```
+
+
+
+加载内核模块
+
+```bash
+cat > /etc/modules-load.d/modules.conf <<EOF
+br_netfilter
+ip_vs
+ip_vs_rr
+ip_vs_wrr
+ip_vs_sh
+nf_conntrack_ipv4
+EOF
+```
+
+
+
+```bash
+for i in br_netfilter ip_vs ip_vs_rr ip_vs_wrr ip_vs_sh nf_conntrack_ipv4;do modprobe $i;done
+```
+
+对于 20.04 之后的系统,此处可能有报错,但是不影响最终安装
+
+
+
+### 安装容器运行时
+
+ 安装 docker, (1.23 还能支持 docker 作为容器运行时, 考虑到 docker 可以兼容更多的实验场景, 所以此例中保留使用 docker)
+
+```bash
+apt -y install apt-transport-https ca-certificates curl software-properties-common
+```
+
+
+
+```bash
+curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | sudo apt-key add -
+sudo add-apt-repository "deb [arch=amd64] https://mirrors.aliyun.com/docker-ce/linux/ubuntu $(lsb_release -cs) stable"
+```
+
+
+
+```bash
+apt update -y 
+apt install docker-ce -y 
+```
+
+
+
+可选, 国际互联网直达安装方式
+
+```bash
+# curl -sSL https://get.docker.com/ | sh
+# usermod -aG docker chengzh
+```
+
+
+
+```bash
+mkdir /etc/docker
+```
+
+
+
+```bash
+cat > /etc/docker/daemon.json << EOF
+{
+    "exec-opts": ["native.cgroupdriver=systemd"],
+    "log-driver": "json-file",
+    "log-opts": {
+        "max-size": "100m",
+        "max-file": "10"
+    },
+    "registry-mirrors": ["https://pqbap4ya.mirror.aliyuncs.com"]
+}
+EOF
+```
+
+
+
+```bash
+systemctl restart docker
+systemctl enable docker
+```
+
+
+
+### 安装 kubeadm、kubectl、kubelet
+
+```
+apt-get update && apt-get install -y apt-transport-https
+```
+
+
+
+```bash
+root@node1:~# apt-get update && apt-get install -y apt-transport-https
+Hit:1 http://repo.huaweicloud.com/ubuntu focal InRelease
+Hit:2 http://repo.huaweicloud.com/ubuntu focal-updates InRelease
+Hit:3 http://repo.huaweicloud.com/ubuntu focal-backports InRelease
+Hit:4 http://repo.huaweicloud.com/ubuntu focal-security InRelease
+Hit:5 https://mirrors.aliyun.com/docker-ce/linux/ubuntu focal InRelease
+Hit:6 https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial InRelease
+Reading package lists... Done
+Reading package lists... Done
+Building dependency tree
+Reading state information... Done
+apt-transport-https is already the newest version (2.0.9).
+0 upgraded, 0 newly installed, 0 to remove and 171 not upgraded.
+```
+
+
+
+```bash
+curl https://mirrors.aliyun.com/kubernetes/apt/doc/apt-key.gpg | apt-key add - 
+```
+
+
+
+```bash
+root@node1:~# curl https://mirrors.aliyun.com/kubernetes/apt/doc/apt-key.gpg | apt-key add -
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  2426  100  2426    0     0  20913      0 --:--:-- --:--:-- --:--:-- 20913
+OK
+```
+
+
+
+```bash
+cat > /etc/apt/sources.list.d/kubernetes.list << EOF 
+deb https://mirrors.aliyun.com/kubernetes/apt/ kubernetes-xenial main
+EOF
+```
+
+
+
+```bash
+apt update -y 
+```
+
+
+
+```bash
+root@node1:~# cat > /etc/apt/sources.list.d/kubernetes.list << EOF
+> deb https://mirrors.aliyun.com/kubernetes/apt/ kubernetes-xenial main
+> EOF
+root@node1:~# apt update -y
+Hit:1 http://repo.huaweicloud.com/ubuntu focal InRelease
+Hit:2 http://repo.huaweicloud.com/ubuntu focal-updates InRelease
+Hit:3 http://repo.huaweicloud.com/ubuntu focal-backports InRelease
+Hit:4 http://repo.huaweicloud.com/ubuntu focal-security InRelease
+Hit:5 https://mirrors.aliyun.com/docker-ce/linux/ubuntu focal InRelease
+Hit:6 https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial InRelease
+Reading package lists... Done
+Building dependency tree
+Reading state information... Done
+171 packages can be upgraded. Run 'apt list --upgradable' to see them.
+```
+
+
+
+```bash
+apt-cache madison kubelet
+```
+
+
+
+```bash
+root@node1:~# apt-cache madison kubelet
+   kubelet |  1.26.0-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.25.5-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.25.4-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.25.3-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.25.2-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.25.1-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.25.0-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.24.9-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.24.8-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.24.7-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.24.6-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.24.5-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.24.4-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.24.3-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.24.2-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.24.1-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.24.0-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet | 1.23.15-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet | 1.23.14-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet | 1.23.13-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet | 1.23.12-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet | 1.23.11-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet | 1.23.10-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.23.9-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.23.8-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.23.7-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.23.6-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.23.5-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.23.4-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.23.3-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.23.2-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.23.1-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet |  1.23.0-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+   kubelet | 1.22.17-00 | https://mirrors.aliyun.com/kubernetes/apt kubernetes-xenial/main amd64 Packages
+```
+
+
+
+安装 `1.23.00` 
+
+```bash
+apt install -y kubelet=1.23.0-00 kubeadm=1.23.0-00  kubectl=1.23.0-00
+```
+
+
+
+可选:安装当前最新版本 
+
+```text
+apt install -y kubelet kubeadm kubectl
+```
+
+
+
+### 安装数据平面
+
+启用`master` (只在 `node1` 上操作)
+
+
+
+```bash
+kubeadm config print init-defaults  > kubeadm-config.yaml
+```
+
+
+
+```bash
+nano kubeadm-config.yaml
+```
+
+
+
+```yaml
+apiVersion: kubeadm.k8s.io/v1beta3
+bootstrapTokens:
+- groups:
+  - system:bootstrappers:kubeadm:default-node-token
+  token: abcdef.0123456789abcdef
+  ttl: 24h0m0s
+  usages:
+  - signing
+  - authentication
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: 192.168.1.231 # 替换为node1 ip
+  bindPort: 6443
+nodeRegistration:
+  criSocket: /var/run/dockershim.sock
+  imagePullPolicy: IfNotPresent
+  name: node1 # 注意主机名
+  taints: null
+---
+apiServer:
+  timeoutForControlPlane: 4m0s
+apiVersion: kubeadm.k8s.io/v1beta3
+certificatesDir: /etc/kubernetes/pki
+clusterName: kubernetes
+controllerManager: {}
+dns: {}
+etcd:
+  local:
+    dataDir: /var/lib/etcd
+imageRepository: registry.cn-hangzhou.aliyuncs.com/google_containers # 替换为aliyun源
+kind: ClusterConfiguration
+kubernetesVersion: 1.23.0 # 注意版本号
+networking:
+  dnsDomain: cluster.local
+  serviceSubnet: 10.96.0.0/12
+  podSubnet: 10.244.0.0/16 # 增加podSubnet
+scheduler: {}
+```
+
+
+
+初始化控制平面
+
+```bash
+kubeadm init --config kubeadm-config.yaml
+```
+
+
+
+```bash
+root@node1:~# kubeadm init --config kubeadm-config.yaml
+[init] Using Kubernetes version: v1.23.0
+[preflight] Running pre-flight checks
+[preflight] Pulling images required for setting up a Kubernetes cluster
+[preflight] This might take a minute or two, depending on the speed of your internet connection
+[preflight] You can also perform this action in beforehand using 'kubeadm config images pull'
+[certs] Using certificateDir folder "/etc/kubernetes/pki"
+[certs] Generating "ca" certificate and key
+[certs] Generating "apiserver" certificate and key
+[certs] apiserver serving cert is signed for DNS names [kubernetes kubernetes.default kubernetes.default.svc kubernetes.default.svc.cluster.local node1] and IPs [10.96.0.1 192.168.1.231]
+[certs] Generating "apiserver-kubelet-client" certificate and key
+[certs] Generating "front-proxy-ca" certificate and key
+[certs] Generating "front-proxy-client" certificate and key
+[certs] Generating "etcd/ca" certificate and key
+[certs] Generating "etcd/server" certificate and key
+[certs] etcd/server serving cert is signed for DNS names [localhost node1] and IPs [192.168.1.231 127.0.0.1 ::1]
+[certs] Generating "etcd/peer" certificate and key
+[certs] etcd/peer serving cert is signed for DNS names [localhost node1] and IPs [192.168.1.231 127.0.0.1 ::1]
+[certs] Generating "etcd/healthcheck-client" certificate and key
+[certs] Generating "apiserver-etcd-client" certificate and key
+[certs] Generating "sa" key and public key
+[kubeconfig] Using kubeconfig folder "/etc/kubernetes"
+[kubeconfig] Writing "admin.conf" kubeconfig file
+[kubeconfig] Writing "kubelet.conf" kubeconfig file
+[kubeconfig] Writing "controller-manager.conf" kubeconfig file
+[kubeconfig] Writing "scheduler.conf" kubeconfig file
+[kubelet-start] Writing kubelet environment file with flags to file "/var/lib/kubelet/kubeadm-flags.env"
+[kubelet-start] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+[kubelet-start] Starting the kubelet
+[control-plane] Using manifest folder "/etc/kubernetes/manifests"
+[control-plane] Creating static Pod manifest for "kube-apiserver"
+[control-plane] Creating static Pod manifest for "kube-controller-manager"
+[control-plane] Creating static Pod manifest for "kube-scheduler"
+[etcd] Creating static Pod manifest for local etcd in "/etc/kubernetes/manifests"
+[wait-control-plane] Waiting for the kubelet to boot up the control plane as static Pods from directory "/etc/kubernetes/manifests". This can take up to 4m0s
+[apiclient] All control plane components are healthy after 7.002121 seconds
+[upload-config] Storing the configuration used in ConfigMap "kubeadm-config" in the "kube-system" Namespace
+[kubelet] Creating a ConfigMap "kubelet-config-1.23" in namespace kube-system with the configuration for the kubelets in the cluster
+NOTE: The "kubelet-config-1.23" naming of the kubelet ConfigMap is deprecated. Once the UnversionedKubeletConfigMap feature gate graduates to Beta the default name will become just "kubelet-config". Kubeadm upgrade will handle this transition transparently.
+[upload-certs] Skipping phase. Please see --upload-certs
+[mark-control-plane] Marking the node node1 as control-plane by adding the labels: [node-role.kubernetes.io/master(deprecated) node-role.kubernetes.io/control-plane node.kubernetes.io/exclude-from-external-load-balancers]
+[mark-control-plane] Marking the node node1 as control-plane by adding the taints [node-role.kubernetes.io/master:NoSchedule]
+[bootstrap-token] Using token: abcdef.0123456789abcdef
+[bootstrap-token] Configuring bootstrap tokens, cluster-info ConfigMap, RBAC Roles
+[bootstrap-token] configured RBAC rules to allow Node Bootstrap tokens to get nodes
+[bootstrap-token] configured RBAC rules to allow Node Bootstrap tokens to post CSRs in order for nodes to get long term certificate credentials
+[bootstrap-token] configured RBAC rules to allow the csrapprover controller automatically approve CSRs from a Node Bootstrap Token
+[bootstrap-token] configured RBAC rules to allow certificate rotation for all node client certificates in the cluster
+[bootstrap-token] Creating the "cluster-info" ConfigMap in the "kube-public" namespace
+[kubelet-finalize] Updating "/etc/kubernetes/kubelet.conf" to point to a rotatable kubelet client certificate and key
+[addons] Applied essential addon: CoreDNS
+[addons] Applied essential addon: kube-proxy
+
+Your Kubernetes control-plane has initialized successfully!
+
+To start using your cluster, you need to run the following as a regular user:
+
+  mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+Alternatively, if you are the root user, you can run:
+
+  export KUBECONFIG=/etc/kubernetes/admin.conf
+
+You should now deploy a pod network to the cluster.
+Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
+  https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+Then you can join any number of worker nodes by running the following on each as root:
+
+kubeadm join 192.168.1.231:6443 --token abcdef.0123456789abcdef \
+        --discovery-token-ca-cert-hash sha256:9fdb7cd01761c26967244a421b1eb45c0ab1949c10016707c53d8477f76375a7
+```
+
+
+
+配置访问群集
+
+```bash
+mkdir -p $HOME/.kube
+cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+chown $(id -u):$(id -u) $HOME/.kube/config
+```
+
+
+
+部署网络插件
+
+```bash
+curl https://docs.projectcalico.org/manifests/calico.yaml -O
+kubectl apply -f calico.yaml
+```
+
+
+
+```bash
+root@node1:~# curl https://docs.projectcalico.org/manifests/calico.yaml -O
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  229k  100  229k    0     0   313k      0 --:--:-- --:--:-- --:--:--  313k
+root@node1:~# kubectl apply -f calico.yaml
+poddisruptionbudget.policy/calico-kube-controllers created
+serviceaccount/calico-kube-controllers created
+serviceaccount/calico-node created
+configmap/calico-config created
+customresourcedefinition.apiextensions.k8s.io/bgpconfigurations.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/bgppeers.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/blockaffinities.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/caliconodestatuses.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/clusterinformations.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/felixconfigurations.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/globalnetworkpolicies.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/globalnetworksets.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/hostendpoints.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/ipamblocks.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/ipamconfigs.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/ipamhandles.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/ippools.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/ipreservations.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/kubecontrollersconfigurations.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/networkpolicies.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/networksets.crd.projectcalico.org created
+clusterrole.rbac.authorization.k8s.io/calico-kube-controllers created
+clusterrole.rbac.authorization.k8s.io/calico-node created
+clusterrolebinding.rbac.authorization.k8s.io/calico-kube-controllers created
+clusterrolebinding.rbac.authorization.k8s.io/calico-node created
+daemonset.apps/calico-node created
+deployment.apps/calico-kube-controllers created
+```
+
+
+
+记录 kubeadmin join
+
+```bash
+kubeadm join 192.168.1.231:6443 --token abcdef.0123456789abcdef \
+        --discovery-token-ca-cert-hash sha256:9fdb7cd01761c26967244a421b1eb45c0ab1949c10016707c53d8477f76375a7
+```
+
+
+
+
+
+### 加入节点到群集及基本检查
+
+在 node2 node3 上运行以下命令加入到群集
+
+```bash
+kubeadm join 192.168.1.231:6443 --token abcdef.0123456789abcdef \
+        --discovery-token-ca-cert-hash sha256:9fdb7cd01761c26967244a421b1eb45c0ab1949c10016707c53d8477f76375a7
+```
+
+
+
+在所有节点上设置 kubelet 自动启动
+
+```bash
+systemctl enable kubelet
+```
+
+
+
+
+
+检查节点状态
+
+```bash
+kubectl get node -o wide
+```
+
+
+
+```bash
+root@node1:~# kubectl get node -o wide
+NAME    STATUS   ROLES                  AGE     VERSION   INTERNAL-IP     EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+node1   Ready    control-plane,master   13m     v1.23.0   192.168.1.231   <none>        Ubuntu 20.04.4 LTS   5.4.0-107-generic   docker://20.10.14
+node2   Ready    <none>                 2m19s   v1.23.0   192.168.1.232   <none>        Ubuntu 20.04.4 LTS   5.4.0-107-generic   docker://20.10.14
+node3   Ready    <none>                 2m19s   v1.23.0   192.168.1.233   <none>        Ubuntu 20.04.4 LTS   5.4.0-107-generic   docker://20.10.14
+```
+
+
+
+检查 pod 运行状态
+
+```
+kubectl get pod -n kube-system -o wide
+```
+
+
+
+```bash
+root@node1:~# kubectl get pod -n kube-system -o wide
+NAME                                       READY   STATUS    RESTARTS   AGE     IP               NODE    NOMINATED NODE   READINESS GATES
+calico-kube-controllers-7b8458594b-x2xqk   1/1     Running   0          9m22s   10.244.166.131   node1   <none>           <none>
+calico-node-fslt9                          1/1     Running   0          6m10s   192.168.1.232    node2   <none>           <none>
+calico-node-hn9jk                          1/1     Running   0          9m22s   192.168.1.231    node1   <none>           <none>
+calico-node-s6mlj                          1/1     Running   0          6m10s   192.168.1.233    node3   <none>           <none>
+coredns-65c54cc984-6c8lv                   1/1     Running   0          17m     10.244.166.130   node1   <none>           <none>
+coredns-65c54cc984-w6hjd                   1/1     Running   0          17m     10.244.166.129   node1   <none>           <none>
+etcd-node1                                 1/1     Running   0          17m     192.168.1.231    node1   <none>           <none>
+kube-apiserver-node1                       1/1     Running   0          17m     192.168.1.231    node1   <none>           <none>
+kube-controller-manager-node1              1/1     Running   0          17m     192.168.1.231    node1   <none>           <none>
+kube-proxy-km7bd                           1/1     Running   0          17m     192.168.1.231    node1   <none>           <none>
+kube-proxy-ph8nf                           1/1     Running   0          6m10s   192.168.1.232    node2   <none>           <none>
+kube-proxy-tgb7w                           1/1     Running   0          6m10s   192.168.1.233    node3   <none>           <none>
+kube-scheduler-node1                       1/1     Running   0          17m     192.168.1.231    node1   <none>           <none>
+```
+
+
+
+创建测试用deployment
+
+```bash
+kubectl create deployment katacoda --image=katacoda/docker-http-server --replicas=3
+```
+
+
+
+查看pod创建过程
+
+```bash
+kubectl get pod -o wide
+```
+
+
+
+```bash
+root@node1:~# kubectl get pod -o wide
+NAME                        READY   STATUS    RESTARTS   AGE     IP             NODE    NOMINATED NODE   READINESS GATES
+katacoda-56dbd65b59-b98h7   1/1     Running   0          2m40s   10.244.135.1   node3   <none>           <none>
+katacoda-56dbd65b59-cvvr8   1/1     Running   0          2m40s   10.244.104.1   node2   <none>           <none>
+katacoda-56dbd65b59-d274w   1/1     Running   0          2m40s   10.244.135.2   node3   <none>           <none>
+```
+
+关注pod的ip地址以及所处节点
+
+
+
+尝试访问不同节点上的pod
+
+```text
+curl 10.244.104.1
+
+curl 10.244.135.2
+```
+
+
+
+如果有类似以下显示则没问题
+
+```bash
+root@node1:~# curl 10.244.104.1
+<h1>This request was processed by host: katacoda-56dbd65b59-cvvr8</h1>
+root@node1:~# curl 10.244.135.2
+<h1>This request was processed by host: katacoda-56dbd65b59-d274w</h1>
+```
+
+
+
+### 常见安装问题
+
+如果只有一台机器,需要做单节点群集,输入以下命令即可
+
+```bash
+kubectl taint node node1 node-role.kubernetes.io/master-
+```
+
+
+
+节点加入群集之后始终无法ready，使用以下步骤逐出群集
+
+```bash
+kubectl drain k8s-0005 --delete-local-data --force --ignore-daemonsets
+kubectl delete node  k8s-0005
+```
+
+
+
+重新加入群集
+
+```bash
+kubeadm join …………
+```
+
+
+
+忘记join key
+
+```bash
+kubeadm token create  --print-join-command
+```
+
+
+
+清理此前的安装痕迹
+
+```bash
+kubeadm reset
+```
 
 
 
@@ -10,7 +798,408 @@
 
 
 
+下载 sealos
+
+```bash
+wget  https://github.com/labring/sealos/releases/download/v4.1.3/sealos_4.1.3_linux_amd64.tar.gz  && \
+    tar -zxvf sealos_4.1.3_linux_amd64.tar.gz sealos &&  chmod +x sealos && mv sealos /usr/bin
+```
+
+
+
+创建配置文件
+
+```bash
+sealos gen labring/kubernetes:v1.25.0 labring/helm:v3.8.2 labring/calico:v3.24.1 --masters 192.168.1.231 --nodes 192.168.1.232,192.168.1.233 --passwd 2wsx#EDC > Clusterfile
+```
+
+
+
+编辑配置文件
+
+```bash
+nano Clusterfile
+```
+
+
+
+```yaml
+apiVersion: apps.sealos.io/v1beta1
+kind: Cluster
+metadata:
+  creationTimestamp: null
+  name: default
+spec:
+  hosts:
+  - ips:
+    - 192.168.1.231:22
+    roles:
+    - master
+    - amd64
+  - ips:
+    - 192.168.1.232:22
+    - 192.168.1.233:22
+    roles:
+    - node
+    - amd64
+  image:
+  - labring/kubernetes:v1.25.5
+  - labring/calico:v3.22.1
+  ssh:
+    passwd: 2wsx#EDC
+    pk: /root/.ssh/id_rsa
+    port: 22
+    user: root
+status: {} # 将以下内容复制到Clusterfile中
+---
+apiVersion: kubeadm.k8s.io/v1beta2
+kind: ClusterConfiguration
+networking:
+  podSubnet: 10.244.0.0/16
+---
+apiVersion: apps.sealos.io/v1beta1
+kind: Config
+metadata:
+  name: calico
+spec:
+  path: manifests/calico.yaml
+  data: |
+    apiVersion: operator.tigera.io/v1
+    kind: Installation
+    metadata:
+      name: default
+    spec:
+      # Configures Calico networking.
+      calicoNetwork:
+        # Note: The ipPools section cannot be modified post-install.
+        ipPools:
+        - blockSize: 26
+          # Note: Must be the same as podCIDR
+          cidr: 10.244.0.0/16
+          encapsulation: IPIP
+          natOutgoing: Enabled
+          nodeSelector: all()
+        nodeAddressAutodetectionV4:
+          interface: "eth.*|en.*"
+```
+
+
+
+安装群集
+
+```bash
+sealos apply -f Clusterfile
+```
+
+
+
+大概五分钟之后安装就绪
+
+```bash
+LAST DEPLOYED: Fri Dec 23 11:11:27 2022
+NAMESPACE: tigera-operator
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+2022-12-23T11:11:30 info succeeded in creating a new cluster, enjoy it!
+2022-12-23T11:11:30 info
+      ___           ___           ___           ___       ___           ___
+     /\  \         /\  \         /\  \         /\__\     /\  \         /\  \
+    /::\  \       /::\  \       /::\  \       /:/  /    /::\  \       /::\  \
+   /:/\ \  \     /:/\:\  \     /:/\:\  \     /:/  /    /:/\:\  \     /:/\ \  \
+  _\:\~\ \  \   /::\~\:\  \   /::\~\:\  \   /:/  /    /:/  \:\  \   _\:\~\ \  \
+ /\ \:\ \ \__\ /:/\:\ \:\__\ /:/\:\ \:\__\ /:/__/    /:/__/ \:\__\ /\ \:\ \ \__\
+ \:\ \:\ \/__/ \:\~\:\ \/__/ \/__\:\/:/  / \:\  \    \:\  \ /:/  / \:\ \:\ \/__/
+  \:\ \:\__\    \:\ \:\__\        \::/  /   \:\  \    \:\  /:/  /   \:\ \:\__\
+   \:\/:/  /     \:\ \/__/        /:/  /     \:\  \    \:\/:/  /     \:\/:/  /
+    \::/  /       \:\__\         /:/  /       \:\__\    \::/  /       \::/  /
+     \/__/         \/__/         \/__/         \/__/     \/__/         \/__/
+
+                  Website :https://www.sealos.io/
+                  Address :github.com/labring/sealos
+```
+
+
+
+查看节点信息
+
+```bash
+kubectl get node -o wide
+```
+
+
+
+```bash
+root@node1:~# kubectl get node -o wide
+NAME    STATUS   ROLES           AGE     VERSION   INTERNAL-IP     EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+node1   Ready    control-plane   3m36s   v1.25.0   192.168.1.231   <none>        Ubuntu 20.04.4 LTS   5.4.0-107-generic   containerd://1.6.14
+node2   Ready    <none>          2m59s   v1.25.0   192.168.1.232   <none>        Ubuntu 20.04.4 LTS   5.4.0-107-generic   containerd://1.6.14
+node3   Ready    <none>          3m      v1.25.0   192.168.1.233   <none>        Ubuntu 20.04.4 LTS   5.4.0-107-generic   containerd://1.6.14
+```
+
+
+
+查看 pod 信息
+
+```bash
+kubectl get pod -A
+```
+
+
+
+```bash
+root@node1:~# kubectl get pod -A
+NAMESPACE          NAME                                       READY   STATUS    RESTARTS   AGE
+calico-apiserver   calico-apiserver-54c55595f4-bknlk          1/1     Running   0          2m1s
+calico-apiserver   calico-apiserver-54c55595f4-sp97p          1/1     Running   0          2m1s
+calico-system      calico-kube-controllers-85666c5b94-qkbmf   1/1     Running   0          2m59s
+calico-system      calico-node-dm442                          1/1     Running   0          3m1s
+calico-system      calico-node-gzgnj                          1/1     Running   0          3m1s
+calico-system      calico-node-zkfw2                          1/1     Running   0          3m1s
+calico-system      calico-typha-7bffcd8675-h24lb              1/1     Running   0          3m2s
+calico-system      calico-typha-7bffcd8675-m89nk              1/1     Running   0          2m52s
+calico-system      csi-node-driver-7r772                      2/2     Running   0          2m23s
+calico-system      csi-node-driver-bf8kl                      2/2     Running   0          2m35s
+calico-system      csi-node-driver-fcbb7                      2/2     Running   0          2m32s
+kube-system        coredns-565d847f94-nmkbj                   1/1     Running   0          3m42s
+kube-system        coredns-565d847f94-psjh2                   1/1     Running   0          3m42s
+kube-system        etcd-node1                                 1/1     Running   0          3m57s
+kube-system        kube-apiserver-node1                       1/1     Running   0          3m59s
+kube-system        kube-controller-manager-node1              1/1     Running   0          3m59s
+kube-system        kube-proxy-h84mx                           1/1     Running   0          3m24s
+kube-system        kube-proxy-kxn9d                           1/1     Running   0          3m43s
+kube-system        kube-proxy-q5kgm                           1/1     Running   0          3m25s
+kube-system        kube-scheduler-node1                       1/1     Running   0          3m59s
+kube-system        kube-sealos-lvscare-node2                  1/1     Running   0          3m17s
+kube-system        kube-sealos-lvscare-node3                  1/1     Running   0          3m18s
+tigera-operator    tigera-operator-6675dc47f4-wtqm2           1/1     Running   0          3m7s
+```
+
+
+
+查看服务信息
+
+```bash
+root@node1:~# kubectl get svc
+NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+kubernetes   ClusterIP   10.96.0.1    <none>        443/TCP   4m28s
+root@node1:~# kubectl get svc -n kube-system
+
+NAME       TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)                  AGE
+kube-dns   ClusterIP   10.96.0.10   <none>        53/UDP,53/TCP,9153/TCP   4m35s
+```
+
+
+
+
+
 ## 使用在线沙盒
+
+如果没有足够的硬件资源,可以考虑使用 https://killercoda.com/ 提供的 [Kubernetes Playground](https://killercoda.com/playgrounds/scenario/kubernetes) ,目前已经支持最新的 `1.26` 版本.
+
+```bash
+controlplane $ kubectl get node -o wide
+NAME           STATUS   ROLES           AGE     VERSION   INTERNAL-IP   EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+controlplane   Ready    control-plane   3d12h   v1.26.0   172.30.1.2    <none>        Ubuntu 20.04.5 LTS   5.4.0-131-generic   containerd://1.6.12
+node01         Ready    <none>          3d11h   v1.26.0   172.30.2.2    <none>        Ubuntu 20.04.5 LTS   5.4.0-131-generic   containerd://1.6.12
+```
+
+
+
+使用要点:
+
+- 建议使用 `Github` 账号进行注册,体验最好.
+- 如果没有 `Github` 账号,可以使用国内的信箱进行注册,但是可能会在开启场景的时候用邮件再次激活.
+- 每个场景最长运行时间是1小时.
+- 目前 Playground 环境免费.
+
+
+
+## (可选) 基本操作
+
+查看 node
+
+```bash
+kubectl get node -o wide
+```
+
+
+
+查看 pod
+
+```bash
+kubect get pod -o wide
+```
+
+
+
+查看所有的 pod
+
+```bash
+kubectl get pod -A -o wide
+```
+
+
+
+查看 ns
+
+```bash
+kubectl get ns
+```
+
+
+
+查看 kube-system 下的pod
+
+```bash
+kubectl get pod -n kube-system
+```
+
+
+
+```bash
+kubectl get pod -n kube-system | grep calico
+```
+
+
+
+创建命名空间
+
+```bash
+kubectl create ns lab
+```
+
+
+
+查看命名空间
+
+```bash
+kubectl get ns -o wide
+```
+
+
+
+查看命名空间详细信息
+
+```bash
+kubectl describe ns kube-system
+```
+
+
+
+查看命名空间的定义文件
+
+```bash
+kubectl get ns lab -o yaml
+```
+
+
+
+创建 pod
+
+```bash
+kubectl run katacoda --image=katacoda/docker-http-server -n lab
+```
+
+
+
+查看新建的 pod
+
+```bash
+kubectl get pod -n lab -o wide
+```
+
+*特别留意pod的ip地址，以及所在节点
+
+
+
+使用 pod 的 ip 访问pod
+
+```bash
+curl 10.244.29.132
+```
+
+
+
+查看 pod 详细信息
+
+```bash
+kubectl describe pod katacoda -n lab
+```
+
+
+
+查看 pod 的日志
+
+```bash
+kubectl logs katacoda -n lab
+```
+
+
+
+查看 pod 的 yaml 文件
+
+```bash
+kubectl get -o yaml katacoda -n lab
+```
+
+
+
+查看修改界面
+
+```bash
+KUBE_EDITOR="nano" kubectl edit pod katacoda -n lab
+```
+
+
+
+
+
+为特定资源对象添加标签：
+
+```bash
+kubectl label ns lab name=lab
+```
+
+
+
+查看标签：
+
+```bash
+kubectl get ns --show-labels
+```
+
+
+
+修改标签：
+
+```bash
+kubectl label ns lab name=cka --overwrite
+```
+
+
+
+删除标签：
+
+```bash
+kubectl label ns lab name-
+```
+
+
+
+删除 pod
+
+```bash
+kubectl delete pod katacoda -n lab
+```
+
+
+
+删除 ns
+
+```bash
+kubectl delete ns lab
+```
 
 
 
